@@ -1,0 +1,3 @@
+# Dépendances locales (PC) — rembg est lourd, pas pour Vercel
+-r requirements.txt
+rembg[cpu]>=2.0.0
