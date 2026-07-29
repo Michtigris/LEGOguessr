@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: lego-guessr
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENABLE_NOBG
+        value: "0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: lego-guessr-data
+      mountPath: /app/backend/data
+      sizeGB: 1
