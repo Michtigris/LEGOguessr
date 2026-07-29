@@ -1,56 +1,36 @@
 # LEGO Guessr — mise en ligne
 
-Oui : tes amis peuvent jouer via une URL publique, et tu continues à modifier le code chez toi.
+## Vercel (ce que tu essayais)
 
-## Option A — Render (recommandé, gratuit)
+Le bouton Deploy est grisé tant que `vercel.json` n’est **pas** à la racine du repo GitHub.
 
-1. Crée un compte sur https://render.com (avec GitHub)
-2. Sur GitHub, crée un repo **vide** `LEGO-Guessr` (ton compte)
-3. Dans ce dossier projet, envoie le code :
+### Déjà en place dans le projet
+- `vercel.json` (services `frontend` + `backend`)
+- routes `/api/*` → FastAPI
+- reste → Vite
 
-```powershell
-cd "c:\Users\Utilisateur\Desktop\ALL Cursor project\LEGO Guessr"
-git init
-git add .
-git commit -m "LEGO Guessr prêt pour le déploiement"
-git branch -M main
-git remote add origin https://github.com/TON_COMPTE/LEGO-Guessr.git
-git push -u origin main
-```
+### Sur Vercel
+1. Refresh la page du projet
+2. Root Directory = `./` (racine)
+3. Framework / Project type = **Services** si proposé
+4. Deploy
 
-4. Sur Render : **New → Blueprint** → choisis le repo → Deploy  
-   (ou **New → Web Service** → Docker → ce repo)
+### Limites importantes sur Vercel
+- La base SQLite **ne reste pas** durable (disque éphémère) : listes Excel peuvent disparaître après un redémarrage / cold start.
+- `rembg` (fonds transparents) est **désactivé** / non installé sur Vercel (trop lourd).
+- Le 1er appel peut être lent (téléchargement du catalogue Rebrickable).
 
-5. Tu obtiens une URL du type :  
-   `https://lego-guessr.onrender.com`
+Pour jouer sérieusement avec des amis et garder les listes, **Render** (Docker) est plus adapté — voir plus bas.
 
-6. Pour **mettre à jour** après une modif :
+## Render (recommandé pour ce jeu)
+
+1. https://render.com → Blueprint → repo `LEGOguessr`
+2. URL durable + disque pour SQLite
+
+## Après chaque modif
 
 ```powershell
 git add .
 git commit -m "ma modif"
 git push
 ```
-
-Render redéploie tout seul.
-
-### Notes
-- Le plan gratuit s’endort après ~15 min sans visite (1er chargement un peu long).
-- Les listes / Excel sont stockés sur le disque Render (persistants avec le `disk` du `render.yaml`).
-- **Fonds transparents (rembg)** désactivés en cloud (trop lourd) ; les photos restent sur plaque blanche.
-
-## Option B — Lien temporaire depuis ton PC (Cloudflare Tunnel)
-
-Si tu veux juste jouer ce soir sans compte cloud :
-
-1. Installe https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
-2. Lance le backend + frontend en local
-3. `cloudflared tunnel --url http://localhost:5173`  
-   → URL publique du type `https://xxxx.trycloudflare.com`
-
-Ton PC doit rester allumé.
-
-## Option C — Railway
-
-https://railway.app → New Project → Deploy from GitHub → Dockerfile.  
-Pareil : push = mise à jour.
