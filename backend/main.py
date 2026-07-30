@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import os
 import random
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from openpyxl import Workbook
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 import db
@@ -25,8 +22,15 @@ from storage import data_root, is_vercel
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-IMAGES_DIR = data_root() / "images"
-IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+_db_ready = False
+
+
+def ensure_db() -> None:
+    global _db_ready
+    if _db_ready:
+        return
+    db.init_db()
+    _db_ready = True
 
 
 def enrich_list_from_catalog(list_id: int, force: bool = False) -> dict[str, Any]:
@@ -74,44 +78,53 @@ def enrich_list_from_catalog(list_id: int, force: bool = False) -> dict[str, Any
     }
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    db.init_db()
-    # Sur Vercel, ne pas télécharger le catalogue au démarrage (cold start / timeout)
-    if not is_vercel():
-        try:
-            load_catalog()
-        except Exception:  # noqa: BLE001
-            pass
-    yield
-
-
-app = FastAPI(title="LEGO Guessr", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="LEGO Guessr", version="1.2.1")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.mount("/media/sets", StaticFiles(directory=str(IMAGES_DIR)), name="set_images")
 
-# Frontend build (Vite) — servi en production depuis le même serveur
+@app.middleware("http")
+async def db_middleware(request, call_next):
+    path = request.url.path
+    if path.startswith("/api") and path != "/api/health":
+        try:
+            ensure_db()
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Base de données indisponible: {exc}"},
+            )
+    return await call_next(request)
+
+
+# Images locales (nobg) — ne jamais faire planter le démarrage si le disque est RO
+try:
+    IMAGES_DIR = data_root() / "images"
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/media/sets", StaticFiles(directory=str(IMAGES_DIR)), name="set_images")
+except Exception:  # noqa: BLE001
+    IMAGES_DIR = Path("/tmp/lego-guessr/images")
+
+# Frontend build (Vite) — servi en production Docker / Render uniquement
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if FRONTEND_DIST.is_dir():
-    app.mount(
-        "/assets",
-        StaticFiles(directory=str(FRONTEND_DIST / "assets")),
-        name="frontend_assets",
-    )
-    # Public static (fonds prélogie, favicon)
+    from fastapi.staticfiles import StaticFiles
+
+    assets = FRONTEND_DIST / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets)), name="frontend_assets")
     public_dir = Path(__file__).resolve().parent.parent / "frontend" / "public"
-    if public_dir.is_dir():
-        bg_dir = public_dir / "bg"
-        if bg_dir.is_dir():
-            app.mount("/bg", StaticFiles(directory=str(bg_dir)), name="bg_images")
+    bg_dir = public_dir / "bg"
+    if bg_dir.is_dir():
+        app.mount("/bg", StaticFiles(directory=str(bg_dir)), name="bg_images")
 
 
 def apply_nobg_batch(list_id: int, batch_size: int = 8) -> dict[str, Any]:
@@ -205,8 +218,8 @@ def require_active_list() -> int:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, Any]:
+    return {"status": "ok", "vercel": is_vercel()}
 
 
 @app.get("/api/lists")
@@ -403,6 +416,8 @@ def nobg_status() -> dict[str, Any]:
 
 @app.get("/api/export/excel")
 def export_excel() -> FileResponse:
+    from openpyxl import Workbook
+
     list_id = require_active_list()
     sets = db.list_sets(list_id)
     if not sets:
@@ -538,30 +553,32 @@ def start_wheel_mode() -> dict[str, Any]:
     }
 
 
-@app.get("/")
-def spa_index():
-    index = FRONTEND_DIST / "index.html"
-    if index.is_file():
-        return FileResponse(index)
-    return {
-        "app": "LEGO Guessr",
-        "hint": "Build le frontend (cd frontend && npm run build) puis relance.",
-    }
+if FRONTEND_DIST.is_dir():
 
+    @app.get("/")
+    def spa_index():
+        index = FRONTEND_DIST / "index.html"
+        if index.is_file():
+            return FileResponse(index)
+        return {
+            "app": "LEGO Guessr",
+            "hint": "Build le frontend (cd frontend && npm run build) puis relance.",
+        }
 
-@app.get("/{full_path:path}")
-def spa_fallback(full_path: str):
-    """SPA fallback — ne pas intercepter /api ni /media."""
-    if full_path.startswith(("api/", "media/", "bg/", "assets/")):
-        raise HTTPException(status_code=404, detail="Not found")
-    index = FRONTEND_DIST / "index.html"
-    if index.is_file():
-        # Prefer exact public file (favicon.svg, etc.)
-        public = Path(__file__).resolve().parent.parent / "frontend" / "public" / full_path
-        if public.is_file():
-            return FileResponse(public)
-        dist_file = FRONTEND_DIST / full_path
-        if dist_file.is_file():
-            return FileResponse(dist_file)
-        return FileResponse(index)
-    raise HTTPException(status_code=404, detail="Frontend non buildé")
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str):
+        """SPA fallback — ne pas intercepter /api ni /media."""
+        if full_path.startswith(("api/", "media/", "bg/", "assets/")):
+            raise HTTPException(status_code=404, detail="Not found")
+        index = FRONTEND_DIST / "index.html"
+        if index.is_file():
+            public = (
+                Path(__file__).resolve().parent.parent / "frontend" / "public" / full_path
+            )
+            if public.is_file():
+                return FileResponse(public)
+            dist_file = FRONTEND_DIST / full_path
+            if dist_file.is_file():
+                return FileResponse(dist_file)
+            return FileResponse(index)
+        raise HTTPException(status_code=404, detail="Frontend non buildé")

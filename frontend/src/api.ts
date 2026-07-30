@@ -78,13 +78,19 @@ export function setStoredApiKey(key: string) {
 }
 
 async function readError(res: Response): Promise<string> {
+  const text = await res.text()
   try {
-    const data = await res.json()
+    const data = JSON.parse(text) as { detail?: unknown }
     if (typeof data.detail === 'string') return data.detail
-    return JSON.stringify(data.detail ?? data)
+    if (data.detail != null) return JSON.stringify(data.detail)
   } catch {
-    return res.statusText || 'Erreur réseau'
+    /* not JSON */
   }
+  const trimmed = text.trim()
+  if (trimmed) {
+    return `${res.status}: ${trimmed.slice(0, 180)}`
+  }
+  return `${res.status} ${res.statusText || 'Erreur réseau'}`
 }
 
 async function request<T>(

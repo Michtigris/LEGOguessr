@@ -1,3 +1,5 @@
 # Dépendances locales (PC) — rembg est lourd, pas pour Vercel
 -r requirements.txt
+uvicorn[standard]>=0.35.0
+pillow>=10.0.0
 rembg[cpu]>=2.0.0
