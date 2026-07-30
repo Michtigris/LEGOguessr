@@ -21,10 +21,11 @@ from catalog import lookup_set, load_catalog
 from game import make_clues, pick_choices, public_set, weighted_choices
 from nobg import has_transparent, is_skipped, local_media_url, process_set_image
 from rebrickable import RebrickableClient, parse_sets_file
+from storage import data_root, is_vercel
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-IMAGES_DIR = Path(__file__).resolve().parent / "data" / "images"
+IMAGES_DIR = data_root() / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -76,11 +77,12 @@ def enrich_list_from_catalog(list_id: int, force: bool = False) -> dict[str, Any
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     db.init_db()
-    # Précharge le catalogue Rebrickable en arrière-plan au démarrage
-    try:
-        load_catalog()
-    except Exception:  # noqa: BLE001
-        pass
+    # Sur Vercel, ne pas télécharger le catalogue au démarrage (cold start / timeout)
+    if not is_vercel():
+        try:
+            load_catalog()
+        except Exception:  # noqa: BLE001
+            pass
     yield
 
 
@@ -234,7 +236,19 @@ async def create_list(
     created = db.create_list(name)
     info = db.replace_list_sets(created["id"], parsed)
     db.set_active_list_id(info["id"])
-    enrich = enrich_list_from_catalog(info["id"])
+    # Sur Vercel : pas d'enrichissement synchrone (téléchargement catalogue = timeout)
+    enrich: dict[str, Any]
+    if is_vercel():
+        enrich = {
+            "processed": 0,
+            "deferred": True,
+            "hint": "Clique « Récupérer les infos Rebrickable » après l'import.",
+        }
+    else:
+        try:
+            enrich = enrich_list_from_catalog(info["id"])
+        except Exception as exc:  # noqa: BLE001
+            enrich = {"processed": 0, "error": str(exc)}
     info = db.get_list(info["id"])
     return {
         "list": info,
@@ -271,7 +285,18 @@ async def update_list_file(
         ) from exc
     info = db.replace_list_sets(list_id, parsed)
     db.set_active_list_id(list_id)
-    enrich = enrich_list_from_catalog(list_id)
+    enrich: dict[str, Any]
+    if is_vercel():
+        enrich = {
+            "processed": 0,
+            "deferred": True,
+            "hint": "Clique « Récupérer les infos Rebrickable » après l'import.",
+        }
+    else:
+        try:
+            enrich = enrich_list_from_catalog(list_id)
+        except Exception as exc:  # noqa: BLE001
+            enrich = {"processed": 0, "error": str(exc)}
     info = db.get_list(list_id)
     return {
         "list": info,
@@ -384,7 +409,7 @@ def export_excel() -> FileResponse:
         raise HTTPException(status_code=400, detail="Aucun set à exporter.")
 
     active = db.get_list(list_id)
-    out_dir = Path(__file__).resolve().parent / "data"
+    out_dir = data_root()
     out_dir.mkdir(parents=True, exist_ok=True)
     safe_name = "".join(
         c if c.isalnum() or c in "-_" else "_" for c in (active["name"] if active else "liste")

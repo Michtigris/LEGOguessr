@@ -8,7 +8,11 @@ from pathlib import Path
 
 import httpx
 
-IMAGES_DIR = Path(__file__).resolve().parent / "data" / "images"
+from storage import data_root
+
+
+def _images_dir() -> Path:
+    return data_root() / "images"
 
 _session = None
 
@@ -27,8 +31,9 @@ def safe_filename(set_num: str) -> str:
 
 
 def image_path(set_num: str) -> Path:
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    return IMAGES_DIR / safe_filename(set_num)
+    images = _images_dir()
+    images.mkdir(parents=True, exist_ok=True)
+    return images / safe_filename(set_num)
 
 
 def local_media_url(set_num: str) -> str:
@@ -41,8 +46,9 @@ def has_transparent(set_num: str) -> bool:
 
 
 def skip_path(set_num: str) -> Path:
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    return IMAGES_DIR / (re.sub(r"[^\w.\-]+", "_", set_num.strip()) + ".skip")
+    images = _images_dir()
+    images.mkdir(parents=True, exist_ok=True)
+    return images / (re.sub(r"[^\w.\-]+", "_", set_num.strip()) + ".skip")
 
 
 def is_skipped(set_num: str) -> bool:

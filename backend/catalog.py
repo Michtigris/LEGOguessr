@@ -11,7 +11,11 @@ from typing import Any
 
 import httpx
 
-DATA_DIR = Path(__file__).resolve().parent / "data" / "catalog"
+from storage import data_root
+
+
+def _catalog_dir() -> Path:
+    return data_root() / "catalog"
 SETS_URL = "https://cdn.rebrickable.com/media/downloads/sets.csv.gz"
 INVENTORIES_URL = "https://cdn.rebrickable.com/media/downloads/inventories.csv.gz"
 MINIFIGS_URL = "https://cdn.rebrickable.com/media/downloads/inventory_minifigs.csv.gz"
@@ -40,17 +44,18 @@ def _needs_refresh(path: Path) -> bool:
 
 def ensure_catalog(force: bool = False) -> Path:
     """Télécharge / rafraîchit sets + inventaires + minifigs."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    catalog_dir = _catalog_dir()
+    catalog_dir.mkdir(parents=True, exist_ok=True)
     files = {
         "sets.csv.gz": SETS_URL,
         "inventories.csv.gz": INVENTORIES_URL,
         "inventory_minifigs.csv.gz": MINIFIGS_URL,
     }
     for name, url in files.items():
-        path = DATA_DIR / name
+        path = catalog_dir / name
         if force or _needs_refresh(path):
             _download(url, path)
-    return DATA_DIR
+    return catalog_dir
 
 
 def _read_gz_csv(path: Path) -> list[dict[str, str]]:
@@ -59,7 +64,8 @@ def _read_gz_csv(path: Path) -> list[dict[str, str]]:
 
 
 def _build_minifig_counts() -> dict[str, int]:
-    inv_rows = _read_gz_csv(DATA_DIR / "inventories.csv.gz")
+    catalog_dir = _catalog_dir()
+    inv_rows = _read_gz_csv(catalog_dir / "inventories.csv.gz")
     # Keep highest version inventory id per set
     best: dict[str, tuple[int, int]] = {}
     for row in inv_rows:
@@ -78,7 +84,7 @@ def _build_minifig_counts() -> dict[str, int]:
     inv_to_set = {inv_id: set_num for set_num, (_, inv_id) in best.items()}
     counts: dict[str, int] = {set_num: 0 for set_num in best}
 
-    for row in _read_gz_csv(DATA_DIR / "inventory_minifigs.csv.gz"):
+    for row in _read_gz_csv(catalog_dir / "inventory_minifigs.csv.gz"):
         try:
             inv_id = int(row["inventory_id"])
             qty = int(float(row.get("quantity") or 1))
@@ -106,7 +112,7 @@ def load_catalog(force: bool = False) -> dict[str, dict[str, Any]]:
     minifigs = _build_minifig_counts()
     index: dict[str, dict[str, Any]] = {}
 
-    for row in _read_gz_csv(DATA_DIR / "sets.csv.gz"):
+    for row in _read_gz_csv(_catalog_dir() / "sets.csv.gz"):
         set_num = (row.get("set_num") or "").strip()
         if not set_num:
             continue

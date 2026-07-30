@@ -146,9 +146,12 @@ export default function App() {
       setActive(result.active)
       setNewListName('')
       const enriched = result.active?.enriched ?? result.list.enriched
+      const deferred = (result as { enrich?: { deferred?: boolean } }).enrich?.deferred
       flash(
         true,
-        `Liste « ${result.list.name} » : ${result.imported} sets importés, ${enriched} enrichis (photo, année, pièces…).`,
+        deferred
+          ? `Liste « ${result.list.name} » : ${result.imported} sets importés. Clique ensuite « Récupérer les infos Rebrickable ».`
+          : `Liste « ${result.list.name} » : ${result.imported} sets importés, ${enriched} enrichis (photo, année, pièces…).`,
       )
       if (createFileRef.current) createFileRef.current.value = ''
     } catch (err) {
@@ -167,9 +170,12 @@ export default function App() {
       setActiveListId(result.active_list_id)
       setActive(result.active)
       const enriched = result.active?.enriched ?? result.list.enriched
+      const deferred = (result as { enrich?: { deferred?: boolean } }).enrich?.deferred
       flash(
         true,
-        `Liste mise à jour : ${result.imported} sets, ${enriched} enrichis. Nom conservé.`,
+        deferred
+          ? `Liste mise à jour : ${result.imported} sets. Clique « Récupérer les infos Rebrickable » pour les photos.`
+          : `Liste mise à jour : ${result.imported} sets, ${enriched} enrichis. Nom conservé.`,
       )
       if (updateFileRef.current) updateFileRef.current.value = ''
     } catch (err) {
