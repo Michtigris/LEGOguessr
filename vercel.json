@@ -7,8 +7,8 @@
     },
     "backend": {
       "root": "backend/",
-      "framework": "fastapi",
-      "entrypoint": "main:app"
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
     }
   },
   "rewrites": [
