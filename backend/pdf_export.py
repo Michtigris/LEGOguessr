@@ -31,8 +31,9 @@ CONTENT_W = PAGE_W - 2 * MARGIN_X
 
 
 def pdf_filename(name: str) -> str:
+    cleaned = name.replace("_", " ")
     cleaned = " ".join(
-        "".join(ch if ch.isalnum() or ch in " -_" else " " for ch in name).split()
+        "".join(ch if ch.isalnum() or ch in " -" else " " for ch in cleaned).split()
     )
     return f"{cleaned or 'liste'}.pdf"
 
@@ -72,7 +73,8 @@ def _cmap(path: Path) -> set[int]:
 
 
 def _sanitize(text: str, cmap: set[int]) -> str:
-    cleaned = " ".join(text.replace("\n", " ").replace("\r", " ").split())
+    cleaned = text.replace("_", " ").replace("\n", " ").replace("\r", " ")
+    cleaned = " ".join(cleaned.split())
     return "".join(ch if ord(ch) in cmap else "?" for ch in cleaned)
 
 
@@ -338,7 +340,7 @@ def _draw_card(
     set_num = str(item.get("set_num") or "—")
     parts = item.get("num_parts")
     year = item.get("year")
-    parts_label = "—" if parts is None else str(int(parts))
+    parts_label = "—" if parts is None else f"{int(parts)} pcs"
     year_label = "—" if year is None else str(int(year))
 
     meta_top = image_y + image_h + 1.6
@@ -394,6 +396,15 @@ def build_list_pdf(name: str, sets: list[dict[str, Any]]) -> bytes:
                 "set_img_url": item.get("set_img_url"),
             }
         )
+
+    def piece_count(row: dict[str, Any]) -> int:
+        raw = row.get("num_parts")
+        try:
+            return int(raw) if raw is not None else -1
+        except (TypeError, ValueError):
+            return -1
+
+    rows.sort(key=piece_count, reverse=True)
 
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=False)
