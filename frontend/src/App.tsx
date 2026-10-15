@@ -159,6 +159,7 @@ export default function App() {
   const [wheelSpinning, setWheelSpinning] = useState(false)
   const [wheelRevealed, setWheelRevealed] = useState(false)
   const [burgerSide, setBurgerSide] = useState<'left' | 'right'>('right')
+  const enrichBoot = useRef(false)
   const heroRowRef = useRef<HTMLDivElement>(null)
   const brandRef = useRef<HTMLHeadingElement>(null)
 
@@ -238,11 +239,21 @@ export default function App() {
     if (!requireListOrOpen()) return
     setBusy(true)
     try {
-      const result = await api.enrich(50)
+      let total = 0
+      let pending = active?.pending ?? 1
+      for (let step = 0; step < 40 && pending > 0; step += 1) {
+        const result = await api.enrich(40)
+        total += result.processed
+        pending = result.pending ?? 0
+        flash(true, `Infos et photos : ${total} sets récupérés…`)
+        if (result.processed === 0) break
+      }
       await refreshLists()
       flash(
         true,
-        `Infos récupérées : ${result.processed} sets. Tu peux ensuite enlever les fonds blancs.`,
+        total
+          ? `Infos récupérées : ${total} sets (nom, année, pièces, photo).`
+          : 'Aucune info nouvelle. Réessaie dans un instant.',
       )
     } catch (err) {
       flash(false, err instanceof Error ? err.message : 'Enrichissement impossible')
@@ -250,6 +261,13 @@ export default function App() {
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (enrichBoot.current || busy) return
+    if (!active || active.pending <= 0) return
+    enrichBoot.current = true
+    void enrichActive()
+  }, [active, busy])
 
   async function removeBackgrounds() {
     if (!requireListOrOpen()) return
@@ -285,6 +303,7 @@ export default function App() {
       setActiveListId(result.active_list_id)
       setActive(result.active)
       setNewListName('')
+      await refreshLists()
       const enriched = result.active?.enriched ?? result.list.enriched
       const deferred = (result as { enrich?: { deferred?: boolean } }).enrich?.deferred
       flash(
@@ -309,6 +328,7 @@ export default function App() {
       setLists(result.lists)
       setActiveListId(result.active_list_id)
       setActive(result.active)
+      await refreshLists()
       const enriched = result.active?.enriched ?? result.list.enriched
       const deferred = (result as { enrich?: { deferred?: boolean } }).enrich?.deferred
       flash(

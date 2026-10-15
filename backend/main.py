@@ -34,7 +34,11 @@ def ensure_db() -> None:
     _db_ready = True
 
 
-def enrich_list_from_catalog(list_id: int, force: bool = False) -> dict[str, Any]:
+def enrich_list_from_catalog(
+    list_id: int,
+    force: bool = False,
+    limit: int | None = None,
+) -> dict[str, Any]:
     """Remplit nom / année / pièces / figs / photo via le catalogue Rebrickable."""
     load_catalog()
     if force:
@@ -47,6 +51,8 @@ def enrich_list_from_catalog(list_id: int, force: bool = False) -> dict[str, Any
             if row.get("year") is None or name.startswith("Inconnu"):
                 if row["set_num"] not in pending:
                     pending.append(row["set_num"])
+    if limit is not None:
+        pending = pending[: max(1, limit)]
 
     processed = 0
     missing: list[str] = []
@@ -72,6 +78,8 @@ def enrich_list_from_catalog(list_id: int, force: bool = False) -> dict[str, Any
                     "enriched": 1,
                 }
             )
+    if processed or missing:
+        db.bump_revision()
     return {
         "processed": processed,
         "missing": missing[:20],
@@ -330,19 +338,11 @@ async def create_list(
     created = db.create_list(name)
     info = db.replace_list_sets(created["id"], parsed)
     db.set_active_list_id(info["id"])
-    # Sur Vercel : pas d'enrichissement synchrone (téléchargement catalogue = timeout)
     enrich: dict[str, Any]
-    if is_vercel():
-        enrich = {
-            "processed": 0,
-            "deferred": True,
-            "hint": "Clique « Récupérer les infos Rebrickable » après l'import.",
-        }
-    else:
-        try:
-            enrich = enrich_list_from_catalog(info["id"])
-        except Exception as exc:  # noqa: BLE001
-            enrich = {"processed": 0, "error": str(exc)}
+    try:
+        enrich = enrich_list_from_catalog(info["id"], limit=80)
+    except Exception as exc:  # noqa: BLE001
+        enrich = {"processed": 0, "error": str(exc)}
     info = db.get_list(info["id"])
     return {
         "list": info,
@@ -380,17 +380,10 @@ async def update_list_file(
     info = db.replace_list_sets(list_id, parsed)
     db.set_active_list_id(list_id)
     enrich: dict[str, Any]
-    if is_vercel():
-        enrich = {
-            "processed": 0,
-            "deferred": True,
-            "hint": "Clique « Récupérer les infos Rebrickable » après l'import.",
-        }
-    else:
-        try:
-            enrich = enrich_list_from_catalog(list_id)
-        except Exception as exc:  # noqa: BLE001
-            enrich = {"processed": 0, "error": str(exc)}
+    try:
+        enrich = enrich_list_from_catalog(list_id, limit=80)
+    except Exception as exc:  # noqa: BLE001
+        enrich = {"processed": 0, "error": str(exc)}
     info = db.get_list(list_id)
     return {
         "list": info,
@@ -443,7 +436,13 @@ async def enrich_sets(
     Si une clé API est fournie, complète les manquants via l'API live.
     """
     list_id = require_active_list()
-    enrich = enrich_list_from_catalog(list_id)
+    try:
+        enrich = enrich_list_from_catalog(list_id, limit=max(1, min(batch_size, 80)))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=502,
+            detail=f"Catalogue Rebrickable indisponible: {exc}",
+        ) from exc
 
     # Optional live API pass for sets still incomplete / missing from catalog
     api_key = (x_api_key or "").strip() or os.getenv("REBRICKABLE_API_KEY", "").strip()

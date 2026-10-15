@@ -151,6 +151,10 @@ def _bump_revision() -> int:
     return nxt
 
 
+def bump_revision() -> int:
+    return _bump_revision()
+
+
 def adopt_orphan_lists() -> None:
     """Sur un PC local, les anciennes listes sans propriétaire restent à cet utilisateur."""
     if is_vercel():
