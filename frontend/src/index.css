@@ -112,6 +112,8 @@ code {
 
 /* ——— Header ——— */
 .top-hero {
+  position: relative;
+  z-index: 5;
   padding: 0.5rem 0 1.4rem;
   animation: rise 0.7s ease both;
 }
@@ -151,8 +153,127 @@ code {
   font-weight: 700;
 }
 
+.top-hero-row.burger-right .export-menu {
+  order: 2;
+  margin-left: auto;
+}
+
+.top-hero-row.burger-right .brand {
+  order: 1;
+}
+
+.top-hero-row.burger-left .export-menu {
+  order: 1;
+}
+
+.top-hero-row.burger-left .brand {
+  order: 2;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: clamp(1rem, 4.8vw, 2.2rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.export-menu {
+  position: relative;
+  flex: none;
+}
+
+.export-popover {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  z-index: 6;
+  width: min(320px, 78vw);
+  padding: 0.75rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  background: rgba(18, 16, 12, 0.88);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.export-menu.side-right .export-popover {
+  right: 0;
+}
+
+.export-menu.side-left .export-popover {
+  left: 0;
+}
+
+.export-popover > button {
+  margin-bottom: 0.75rem;
+}
+
+.export-popover-title {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sw-yellow);
+}
+
+.export-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.export-popover ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(50vh, 320px);
+  overflow: auto;
+}
+
+.export-popover li + li {
+  margin-top: 0.35rem;
+}
+
+.export-popover button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+  color: var(--ink);
+  background: rgba(255, 232, 31, 0.1);
+  border: 1px solid var(--stroke-soft);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+}
+
+.export-popover button:hover:not(:disabled) {
+  border-color: var(--sw-yellow);
+  background: rgba(255, 232, 31, 0.22);
+}
+
+.export-popover button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.export-popover strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-popover small {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .list-icon-btn {
   position: relative;
+  flex: none;
   width: 52px;
   height: 52px;
   border-radius: var(--radius);
@@ -171,6 +292,12 @@ code {
   transform: translateY(-2px);
   border-color: var(--sw-yellow);
   background: rgba(255, 232, 31, 0.35);
+}
+
+.list-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
 }
 
 .list-dot {

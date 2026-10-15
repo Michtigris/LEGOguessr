@@ -20,6 +20,31 @@ export type ListsPayload = {
   lists: SetList[]
   active_list_id: number | null
   active: SetList | null
+  revision: number
+}
+
+export type ArchiveSet = {
+  set_num: string
+  quantity: number
+  name?: string | null
+  year?: number | null
+  num_parts?: number | null
+  num_minifigs?: number | null
+  set_img_url?: string | null
+  set_url?: string | null
+  enriched?: number
+}
+
+export type ArchiveList = {
+  name: string
+  active: boolean
+  sets: ArchiveSet[]
+}
+
+export type Archive = {
+  version: number
+  revision: number
+  lists: ArchiveList[]
 }
 
 export type SetSummary = {
@@ -68,6 +93,48 @@ export type WheelRound = {
 }
 
 const API_KEY_STORAGE = 'lego_guessr_api_key'
+const DEVICE_KEY = 'lego_guessr_device'
+const ARCHIVE_KEY = 'lego_guessr_archive'
+const DEVICE_RE = /^[A-Za-z0-9_-]{16,80}$/
+
+function readCookie(name: string): string {
+  const prefix = `${name}=`
+  for (const part of document.cookie.split(';')) {
+    const item = part.trim()
+    if (item.startsWith(prefix)) return decodeURIComponent(item.slice(prefix.length))
+  }
+  return ''
+}
+
+export function getDeviceId(): string {
+  const stored = localStorage.getItem(DEVICE_KEY) || ''
+  const fromCookie = readCookie('lego_device')
+  let id = DEVICE_RE.test(stored) ? stored : DEVICE_RE.test(fromCookie) ? fromCookie : ''
+  if (!id) id = crypto.randomUUID().replace(/-/g, '')
+  localStorage.setItem(DEVICE_KEY, id)
+  document.cookie = `lego_device=${id}; Max-Age=34560000; Path=/; SameSite=Lax`
+  return id
+}
+
+export function loadArchive(): Archive | null {
+  try {
+    const raw = localStorage.getItem(ARCHIVE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as Archive
+    if (!data || data.version !== 1 || !Array.isArray(data.lists)) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+export function saveArchive(archive: Archive) {
+  try {
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive))
+  } catch {
+    /* quota pleine : la session serveur reste valable tant que le serveur vit */
+  }
+}
 
 export function getStoredApiKey(): string {
   return localStorage.getItem(API_KEY_STORAGE) ?? ''
@@ -99,6 +166,7 @@ async function request<T>(
   withApiKey = false,
 ): Promise<T> {
   const headers = new Headers(init.headers)
+  headers.set('X-Device-Id', getDeviceId())
   if (withApiKey) {
     const key = getStoredApiKey()
     if (key) headers.set('X-API-Key', key)
@@ -172,6 +240,35 @@ export const api = {
     }>('/api/nobg/status'),
   exportExcel: () => {
     window.open('/api/export/excel', '_blank')
+  },
+  snapshot: () => request<Archive>('/api/session/snapshot'),
+  restore: (archive: Archive) =>
+    request<ListsPayload>('/api/session/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(archive),
+    }),
+  exportListPdf: async (listId: number, fallbackName: string) => {
+    const res = await fetch(`/api/lists/${listId}/export/pdf`, {
+      headers: { 'X-Device-Id': getDeviceId() },
+    })
+    if (!res.ok) throw new Error(await readError(res))
+    const blob = await res.blob()
+    const header = res.headers.get('Content-Disposition') || ''
+    const star = /filename\*=UTF-8''([^;]+)/i.exec(header)
+    const plain = /filename="([^"]+)"/i.exec(header)
+    let filename = fallbackName
+    if (star?.[1]) filename = decodeURIComponent(star[1])
+    else if (plain?.[1]) filename = plain[1]
+    if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf'
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
   },
   startGuess: () => request<GuessRound>('/api/game/guess', { method: 'POST' }),
   checkGuess: (answer_set_num: string, guess_set_num: string) =>

@@ -29,7 +29,8 @@ RUN pip install --no-cache-dir \
     "openpyxl>=3.1.5" \
     "pydantic>=2.12.0" \
     "python-dotenv>=1.0.0" \
-    "pillow>=10.0.0"
+    "pillow>=10.0.0" \
+    "fpdf2>=2.8.2"
 
 COPY backend/ ./backend/
 COPY --from=frontend /app/frontend/dist ./frontend/dist

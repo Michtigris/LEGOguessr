@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
+from contextvars import ContextVar, Token
 from datetime import datetime, timezone
 from typing import Any
 
-from storage import data_root
+from storage import data_root, is_vercel
+
+_session: ContextVar[str] = ContextVar("lego_session", default="local")
+_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{16,80}$")
+
+
+def current_session() -> str:
+    return _session.get()
+
+
+def push_session(session_id: str) -> Token[str]:
+    return _session.set(session_id)
+
+
+def pop_session(token: Token[str]) -> None:
+    _session.reset(token)
+
+
+def valid_session_id(value: str) -> bool:
+    return bool(_SESSION_RE.fullmatch(value or ""))
 
 
 def _db_path():
@@ -78,6 +99,14 @@ def init_db() -> None:
             )
             """
         )
+        columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(lists)").fetchall()
+        }
+        if "session_id" not in columns:
+            conn.execute("ALTER TABLE lists ADD COLUMN session_id TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_lists_session ON lists(session_id)"
+        )
         conn.commit()
 
 
@@ -108,42 +137,99 @@ def set_setting(key: str, value: str | None) -> None:
         conn.commit()
 
 
-def create_list(name: str) -> dict[str, Any]:
+def session_revision() -> int:
+    raw = get_setting(f"rev:{current_session()}") or "0"
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
+def _bump_revision() -> int:
+    nxt = session_revision() + 1
+    set_setting(f"rev:{current_session()}", str(nxt))
+    return nxt
+
+
+def adopt_orphan_lists() -> None:
+    """Sur un PC local, les anciennes listes sans propriétaire restent à cet utilisateur."""
+    if is_vercel():
+        return
+    sid = current_session()
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            UPDATE lists
+            SET session_id = ?
+            WHERE session_id IS NULL OR session_id = ''
+            """,
+            (sid,),
+        )
+        conn.commit()
+        adopted = cur.rowcount > 0
+    if not adopted or get_setting(f"active:{sid}"):
+        return
+    legacy = get_setting("active_list_id")
+    if legacy:
+        set_setting(f"active:{sid}", legacy)
+
+
+def create_list(name: str, *, bump: bool = True) -> dict[str, Any]:
     now = _now()
     with get_connection() as conn:
         cur = conn.execute(
-            "INSERT INTO lists (name, created_at, updated_at) VALUES (?, ?, ?)",
-            (name.strip(), now, now),
+            """
+            INSERT INTO lists (name, created_at, updated_at, session_id)
+            VALUES (?, ?, ?, ?)
+            """,
+            (name.strip(), now, now, current_session()),
         )
         list_id = cur.lastrowid
         conn.commit()
+    if bump:
+        _bump_revision()
     return get_list(int(list_id))  # type: ignore[arg-type]
 
 
 def rename_list(list_id: int, name: str) -> dict[str, Any] | None:
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE lists SET name = ?, updated_at = ? WHERE id = ?",
-            (name.strip(), _now(), list_id),
+        cur = conn.execute(
+            """
+            UPDATE lists
+            SET name = ?, updated_at = ?
+            WHERE id = ? AND session_id = ?
+            """,
+            (name.strip(), _now(), list_id, current_session()),
         )
         conn.commit()
+        changed = cur.rowcount > 0
+    if not changed:
+        return None
+    _bump_revision()
     return get_list(list_id)
 
 
 def delete_list(list_id: int) -> bool:
     with get_connection() as conn:
-        cur = conn.execute("DELETE FROM lists WHERE id = ?", (list_id,))
+        cur = conn.execute(
+            "DELETE FROM lists WHERE id = ? AND session_id = ?",
+            (list_id, current_session()),
+        )
         conn.commit()
-    active = get_setting("active_list_id")
-    if active and int(active) == list_id:
-        set_setting("active_list_id", None)
-    return cur.rowcount > 0
+        deleted = cur.rowcount > 0
+    if not deleted:
+        return False
+    if get_setting(f"active:{current_session()}") == str(list_id):
+        set_setting(f"active:{current_session()}", None)
+    _bump_revision()
+    return True
 
 
 def get_list(list_id: int) -> dict[str, Any] | None:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT * FROM lists WHERE id = ?", (list_id,)
+            "SELECT * FROM lists WHERE id = ? AND session_id = ?",
+            (list_id, current_session()),
         ).fetchone()
         if not row:
             return None
@@ -173,12 +259,22 @@ def get_list(list_id: int) -> dict[str, Any] | None:
 def list_lists() -> list[dict[str, Any]]:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT id FROM lists ORDER BY updated_at DESC"
+            """
+            SELECT id FROM lists
+            WHERE session_id = ?
+            ORDER BY updated_at DESC
+            """,
+            (current_session(),),
         ).fetchall()
-    return [get_list(row["id"]) for row in rows]  # type: ignore[misc]
+    return [info for row in rows if (info := get_list(row["id"]))]
 
 
-def replace_list_sets(list_id: int, sets: list[dict[str, Any]]) -> dict[str, Any]:
+def replace_list_sets(
+    list_id: int,
+    sets: list[dict[str, Any]],
+    *,
+    bump: bool = True,
+) -> dict[str, Any]:
     """Keep list name; replace all set contents. Reuse cached enrichment."""
     if get_list(list_id) is None:
         raise ValueError("Liste introuvable.")
@@ -204,30 +300,42 @@ def replace_list_sets(list_id: int, sets: list[dict[str, Any]]) -> dict[str, Any
                 (set_num,),
             )
         conn.execute(
-            "UPDATE lists SET updated_at = ? WHERE id = ?",
-            (_now(), list_id),
+            "UPDATE lists SET updated_at = ? WHERE id = ? AND session_id = ?",
+            (_now(), list_id, current_session()),
         )
         conn.commit()
+    if bump:
+        _bump_revision()
     return get_list(list_id)  # type: ignore[return-value]
 
 
 def get_active_list_id() -> int | None:
-    raw = get_setting("active_list_id")
+    raw = get_setting(f"active:{current_session()}")
+    if not raw and current_session() == "local":
+        raw = get_setting("active_list_id")
     if not raw:
         return None
     try:
-        return int(raw)
+        list_id = int(raw)
     except ValueError:
         return None
+    if get_list(list_id) is None:
+        return None
+    return list_id
 
 
-def set_active_list_id(list_id: int | None) -> None:
+def set_active_list_id(list_id: int | None, *, bump: bool = True) -> None:
+    key = f"active:{current_session()}"
     if list_id is None:
-        set_setting("active_list_id", None)
+        set_setting(key, None)
+        if bump:
+            _bump_revision()
         return
     if get_list(list_id) is None:
         raise ValueError("Liste introuvable.")
-    set_setting("active_list_id", str(list_id))
+    set_setting(key, str(list_id))
+    if bump:
+        _bump_revision()
 
 
 def list_sets(list_id: int, enriched_only: bool = False) -> list[dict[str, Any]]:
@@ -324,3 +432,110 @@ def force_set_img(set_num: str, set_img_url: str) -> None:
             (set_img_url, set_num),
         )
         conn.commit()
+
+
+def _public_img(set_num: str, url: str | None) -> str | None:
+    if not url:
+        return None
+    if not str(url).startswith("/media/"):
+        return url
+    local = data_root() / "images" / str(url).rsplit("/", 1)[-1]
+    if local.is_file():
+        return url
+    return f"https://cdn.rebrickable.com/media/sets/{set_num.lower()}.jpg"
+
+
+def export_snapshot() -> dict[str, Any]:
+    active = get_active_list_id()
+    lists: list[dict[str, Any]] = []
+    for info in list_lists():
+        sets = []
+        for row in list_sets(info["id"]):
+            set_num = row["set_num"]
+            sets.append(
+                {
+                    "set_num": set_num,
+                    "quantity": int(row.get("quantity") or 1),
+                    "name": row.get("name"),
+                    "year": row.get("year"),
+                    "num_parts": row.get("num_parts"),
+                    "num_minifigs": row.get("num_minifigs"),
+                    "set_img_url": _public_img(set_num, row.get("set_img_url")),
+                    "set_url": row.get("set_url"),
+                    "enriched": int(row.get("enriched") or 0),
+                }
+            )
+        lists.append(
+            {
+                "name": info["name"],
+                "active": info["id"] == active,
+                "sets": sets,
+            }
+        )
+    return {
+        "version": 1,
+        "revision": session_revision(),
+        "lists": lists,
+    }
+
+
+def import_snapshot(payload: dict[str, Any]) -> None:
+    """Remplace les listes de cette session par une archive déjà connue."""
+    sid = current_session()
+    incoming = payload.get("lists") or []
+    if not isinstance(incoming, list):
+        raise ValueError("Archive invalide.")
+    if len(incoming) > 80:
+        raise ValueError("Trop de listes dans l'archive.")
+    total_sets = 0
+    for item in incoming:
+        total_sets += len(item.get("sets") or [])
+    if total_sets > 20000:
+        raise ValueError("Trop de sets dans l'archive.")
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM lists WHERE session_id = ?", (sid,))
+        conn.commit()
+    set_setting(f"active:{sid}", None)
+
+    active_id: int | None = None
+    for item in incoming:
+        name = str(item.get("name") or "").strip() or "Liste"
+        created = create_list(name[:80], bump=False)
+        parsed = []
+        for raw in item.get("sets") or []:
+            set_num = str(raw.get("set_num") or "").strip()
+            if not set_num or len(set_num) > 32:
+                continue
+            qty = raw.get("quantity") or 1
+            try:
+                qty = max(1, int(qty))
+            except (TypeError, ValueError):
+                qty = 1
+            parsed.append({"set_num": set_num, "quantity": qty})
+            img = _public_img(set_num, raw.get("set_img_url"))
+            if raw.get("name") or raw.get("year") is not None or img or raw.get("enriched"):
+                upsert_cache(
+                    {
+                        "set_num": set_num,
+                        "name": raw.get("name"),
+                        "year": raw.get("year"),
+                        "num_parts": raw.get("num_parts"),
+                        "num_minifigs": raw.get("num_minifigs"),
+                        "set_img_url": img,
+                        "set_url": raw.get("set_url"),
+                        "theme_id": None,
+                        "enriched": 1 if raw.get("enriched") else 0,
+                    }
+                )
+        if parsed:
+            replace_list_sets(created["id"], parsed, bump=False)
+        if item.get("active"):
+            active_id = created["id"]
+    if active_id is not None:
+        set_active_list_id(active_id, bump=False)
+    try:
+        revision = max(1, int(payload.get("revision") or 1))
+    except (TypeError, ValueError):
+        revision = 1
+    set_setting(f"rev:{sid}", str(revision))

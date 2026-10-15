@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 import random
+import uuid
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 import db
@@ -18,7 +19,7 @@ from catalog import lookup_set, load_catalog
 from game import make_clues, pick_choices, public_set, weighted_choices
 from nobg import has_transparent, is_skipped, local_media_url, process_set_image
 from rebrickable import RebrickableClient, parse_sets_file
-from storage import data_root, is_vercel
+from storage import data_root, is_desktop, is_vercel, resource_root
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -89,18 +90,54 @@ app.add_middleware(
 )
 
 
+def resolve_session_id(request) -> str:
+    """Identité durable du navigateur. L'IP change, donc on ne s'en sert pas."""
+    if is_desktop():
+        return "local"
+    raw = (
+        request.headers.get("x-device-id")
+        or request.cookies.get("lego_device")
+        or ""
+    ).strip()
+    if db.valid_session_id(raw):
+        return raw
+    return uuid.uuid4().hex
+
+
 @app.middleware("http")
 async def db_middleware(request, call_next):
     path = request.url.path
-    if path.startswith("/api") and path != "/api/health":
-        try:
-            ensure_db()
-        except Exception as exc:  # noqa: BLE001
-            return JSONResponse(
-                status_code=500,
-                content={"detail": f"Base de données indisponible: {exc}"},
-            )
-    return await call_next(request)
+    session_id = ""
+    token = None
+    if path.startswith("/api"):
+        session_id = resolve_session_id(request)
+        token = db.push_session(session_id)
+        if path != "/api/health":
+            try:
+                ensure_db()
+                db.adopt_orphan_lists()
+            except Exception as exc:  # noqa: BLE001
+                db.pop_session(token)
+                return JSONResponse(
+                    status_code=500,
+                    content={"detail": f"Base de données indisponible: {exc}"},
+                )
+    try:
+        response = await call_next(request)
+    finally:
+        if token is not None:
+            db.pop_session(token)
+    if session_id:
+        response.set_cookie(
+            "lego_device",
+            session_id,
+            max_age=60 * 60 * 24 * 400,
+            path="/",
+            samesite="lax",
+            secure=request.url.scheme == "https",
+            httponly=False,
+        )
+    return response
 
 
 # Images locales (nobg) — ne jamais faire planter le démarrage si le disque est RO
@@ -113,15 +150,16 @@ try:
 except Exception:  # noqa: BLE001
     IMAGES_DIR = Path("/tmp/lego-guessr/images")
 
-# Frontend build (Vite) — servi en production Docker / Render uniquement
-FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+# Frontend build (Vite) — Docker / Render / exe desktop
+_ROOT = resource_root()
+FRONTEND_DIST = _ROOT / "frontend" / "dist"
 if FRONTEND_DIST.is_dir():
     from fastapi.staticfiles import StaticFiles
 
     assets = FRONTEND_DIST / "assets"
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=str(assets)), name="frontend_assets")
-    public_dir = Path(__file__).resolve().parent.parent / "frontend" / "public"
+    public_dir = _ROOT / "frontend" / "public"
     bg_dir = public_dir / "bg"
     if bg_dir.is_dir():
         app.mount("/bg", StaticFiles(directory=str(bg_dir)), name="bg_images")
@@ -191,6 +229,30 @@ class SelectListBody(BaseModel):
     list_id: int
 
 
+class SnapshotSet(BaseModel):
+    set_num: str
+    quantity: int = 1
+    name: str | None = None
+    year: int | None = None
+    num_parts: int | None = None
+    num_minifigs: int | None = None
+    set_img_url: str | None = None
+    set_url: str | None = None
+    enriched: int = 0
+
+
+class SnapshotList(BaseModel):
+    name: str = "Liste"
+    active: bool = False
+    sets: list[SnapshotSet] = Field(default_factory=list)
+
+
+class SnapshotBody(BaseModel):
+    version: int = 1
+    revision: int = 0
+    lists: list[SnapshotList] = Field(default_factory=list)
+
+
 def resolve_api_key(x_api_key: str | None) -> str:
     key = (x_api_key or "").strip() or os.getenv("REBRICKABLE_API_KEY", "").strip()
     if not key:
@@ -227,7 +289,26 @@ def get_lists() -> dict[str, Any]:
     lists = db.list_lists()
     active = db.get_active_list_id()
     active_info = db.get_list(active) if active else None
-    return {"lists": lists, "active_list_id": active, "active": active_info}
+    return {
+        "lists": lists,
+        "active_list_id": active,
+        "active": active_info,
+        "revision": db.session_revision(),
+    }
+
+
+@app.get("/api/session/snapshot")
+def session_snapshot() -> dict[str, Any]:
+    return db.export_snapshot()
+
+
+@app.post("/api/session/restore")
+def session_restore(body: SnapshotBody) -> dict[str, Any]:
+    try:
+        db.import_snapshot(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return get_lists()
 
 
 @app.post("/api/lists")
@@ -459,6 +540,36 @@ def export_excel() -> FileResponse:
     )
 
 
+@app.get("/api/lists/{list_id}/export/pdf")
+def export_list_pdf(list_id: int) -> Response:
+    info = db.get_list(list_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="Liste introuvable.")
+    sets = db.list_sets(list_id)
+    if not sets:
+        raise HTTPException(status_code=400, detail="Aucun set à exporter.")
+    try:
+        from pdf_export import build_list_pdf, content_disposition, pdf_filename
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Export PDF indisponible.",
+        ) from exc
+    try:
+        payload = build_list_pdf(info["name"], sets)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"Impossible de créer le PDF: {exc}",
+        ) from exc
+    filename = pdf_filename(info["name"])
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={"Content-Disposition": content_disposition(filename)},
+    )
+
+
 @app.post("/api/game/guess")
 def start_guess_mode() -> dict[str, Any]:
     """Guess: sets uniques, proba égale (la quantité ne compte pas)."""
@@ -572,9 +683,7 @@ if FRONTEND_DIST.is_dir():
             raise HTTPException(status_code=404, detail="Not found")
         index = FRONTEND_DIST / "index.html"
         if index.is_file():
-            public = (
-                Path(__file__).resolve().parent.parent / "frontend" / "public" / full_path
-            )
+            public = _ROOT / "frontend" / "public" / full_path
             if public.is_file():
                 return FileResponse(public)
             dist_file = FRONTEND_DIST / full_path

@@ -2,33 +2,21 @@
 
 Jeu LEGO façon Guess / Roue, listes Excel + infos Rebrickable.
 
-## Local
+## Version « jeu » (double-clic, comme Godot)
+
+Un seul fichier `LEGO Guessr.exe` : tu l’ouvres, le jeu se lance dans une fenêtre.
+Les listes restent en mémoire sur le PC (`%LOCALAPPDATA%\LEGO Guessr\`).
+
+Pour (re)construire l’exe :
 
 ```powershell
-# Backend
-cd backend
-python -m pip install -r requirements.txt
-python -m uvicorn main:app --port 8000
-
-# Frontend (dev)
-cd frontend
-npm install
-npm run dev
+cd "CHEMIN\VERS\LEGO Guessr"
+powershell -ExecutionPolicy Bypass -File .\desktop\build.ps1
 ```
 
-→ http://localhost:5173
+L’exe apparaît dans `dist-desktop\LEGO Guessr.exe` — copie-le où tu veux / envoie-le à tes amis.
 
-## Mise en ligne
-
-### Vercel (frontend + API)
-1. Repo GitHub connecté
-2. Fichier `vercel.json` à la racine (déjà présent)
-3. Root Directory = `./`
-4. Refresh → Deploy
-
-Voir aussi [DEPLOY.md](DEPLOY.md).
-
-### Local
+## Local (dev)
 
 ```powershell
 cd backend
@@ -39,3 +27,9 @@ cd frontend
 npm install
 npm run dev
 ```
+
+→ http://localhost:5173
+
+## Mise en ligne
+
+Voir [DEPLOY.md](DEPLOY.md) (Vercel / Render).

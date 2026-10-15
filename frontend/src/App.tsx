@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   api,
+  loadArchive,
+  saveArchive,
   type GuessResult,
   type GuessRound,
   type SetList,
@@ -18,6 +20,100 @@ const SCENE_BY_SCREEN: Record<Screen, string> = {
 
 function formatRange([low, high]: [number, number]) {
   return `${low} – ${high}`
+}
+
+function AppMenu({
+  lists,
+  side,
+  busy,
+  listsOpen,
+  hasActive,
+  onToggleLists,
+  onExport,
+}: {
+  lists: SetList[]
+  side: 'left' | 'right'
+  busy: boolean
+  listsOpen: boolean
+  hasActive: boolean
+  onToggleLists: () => void
+  onExport: (id: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointer(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className={`export-menu side-${side}`} ref={rootRef}>
+      <button
+        type="button"
+        className={`list-icon-btn ${open || listsOpen ? 'active' : ''}`}
+        aria-label="Menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Menu"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
+        </svg>
+        {hasActive && <span className="list-dot" />}
+      </button>
+      {open && (
+        <div className="export-popover" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onToggleLists()
+            }}
+          >
+            <strong>{listsOpen ? 'Fermer les listes' : 'Listes de sets'}</strong>
+            <small>{listsOpen ? 'fermer' : 'gérer'}</small>
+          </button>
+          <p className="export-popover-title">Exporter en PDF</p>
+          {!lists.length ? (
+            <p className="export-empty">Aucune liste pour l’instant.</p>
+          ) : (
+            <ul>
+              {lists.map((list) => (
+                <li key={list.id}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={busy || list.total === 0}
+                    onClick={() => {
+                      setOpen(false)
+                      onExport(list.id)
+                    }}
+                  >
+                    <strong>{list.name}</strong>
+                    <small>{list.total ? `${list.total} sets` : 'vide'}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SetPlate({
@@ -62,9 +158,53 @@ export default function App() {
   const [wheelRound, setWheelRound] = useState<WheelRound | null>(null)
   const [wheelSpinning, setWheelSpinning] = useState(false)
   const [wheelRevealed, setWheelRevealed] = useState(false)
+  const [burgerSide, setBurgerSide] = useState<'left' | 'right'>('right')
+  const heroRowRef = useRef<HTMLDivElement>(null)
+  const brandRef = useRef<HTMLHeadingElement>(null)
+
+  useLayoutEffect(() => {
+    const row = heroRowRef.current
+    const brand = brandRef.current
+    if (!row || !brand) return
+
+    function placeBurger() {
+      if (!row || !brand) return
+      const range = document.createRange()
+      range.selectNodeContents(brand)
+      const textWidth = range.getBoundingClientRect().width
+      const rowGap = parseFloat(getComputedStyle(row).columnGap || '16') || 16
+      const button = 52
+      const needed = textWidth + rowGap + button
+      setBurgerSide(needed <= row.clientWidth + 1 ? 'right' : 'left')
+    }
+
+    placeBurger()
+    const observer = new ResizeObserver(placeBurger)
+    observer.observe(row)
+    return () => observer.disconnect()
+  }, [])
 
   const refreshLists = useCallback(async () => {
-    const data = await api.lists()
+    let data = await api.lists()
+    const archive = loadArchive()
+    if (
+      archive &&
+      (archive.revision > (data.revision ?? 0) ||
+        (data.lists.length === 0 && archive.lists.length > 0))
+    ) {
+      data = await api.restore(archive)
+    }
+    if (
+      !archive ||
+      archive.revision !== data.revision ||
+      archive.lists.length !== data.lists.length
+    ) {
+      try {
+        saveArchive(await api.snapshot())
+      } catch {
+        /* l'affichage des listes ne dépend pas de la copie locale */
+      }
+    }
     setLists(data.lists)
     setActiveListId(data.active_list_id)
     setActive(data.active)
@@ -220,6 +360,21 @@ export default function App() {
     }
   }
 
+  async function exportListPdf(id: number) {
+    const target = lists.find((list) => list.id === id)
+    if (!target) return
+    setBusy(true)
+    flash(true, `Création du PDF « ${target.name} »…`)
+    try {
+      await api.exportListPdf(id, target.name)
+      flash(true, `PDF « ${target.name} » téléchargé.`)
+    } catch (err) {
+      flash(false, err instanceof Error ? err.message : 'Export PDF impossible')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function openGuess() {
     if (!requireListOrOpen()) return
     setBusy(true)
@@ -320,23 +475,19 @@ export default function App() {
       </div>
 
       <header className="top-hero">
-        <div className="top-hero-row">
-          <h1 className="brand">LEGO Guessr</h1>
-          <button
-            type="button"
-            className={`list-icon-btn ${listsOpen ? 'active' : ''}`}
-            aria-label="Listes de sets (Film, Série, Jeux…)"
-            title="Listes de sets"
-            onClick={() => setListsOpen((v) => !v)}
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M4 6h2v2H4V6zm0 5h2v2H4v-2zm0 5h2v2H4v-2zm4-10h12v2H8V6zm0 5h12v2H8v-2zm0 5h12v2H8v-2z"
-              />
-            </svg>
-            {active && <span className="list-dot" />}
-          </button>
+        <div className={`top-hero-row burger-${burgerSide}`} ref={heroRowRef}>
+          <AppMenu
+            lists={lists}
+            side={burgerSide}
+            busy={busy}
+            listsOpen={listsOpen}
+            hasActive={!!active}
+            onToggleLists={() => setListsOpen((open) => !open)}
+            onExport={(id) => void exportListPdf(id)}
+          />
+          <h1 className="brand" ref={brandRef}>
+            LEGO Guessr
+          </h1>
         </div>
         <p className="tagline">
           {active ? (
@@ -350,6 +501,10 @@ export default function App() {
         </p>
       </header>
 
+      {message && screen !== 'home' && !listsOpen && (
+        <div className={`message ${messageOk ? 'ok' : ''}`}>{message}</div>
+      )}
+
       {listsOpen && (
         <section className="panel lists-panel">
           <div className="topbar">
@@ -358,7 +513,8 @@ export default function App() {
               <p className="lead" style={{ marginBottom: 0 }}>
                 Importe un Excel (ex. <code>75372-1,13,1</code> = set, quantité,
                 version). La quantité compte pour la roue ; le Guess utilise des
-                sets uniques.
+                sets uniques. Sur le site, tes listes restent liées à ce
+                navigateur : tu les retrouves même une semaine plus tard.
               </p>
             </div>
             <button type="button" className="btn btn-ghost" onClick={() => setListsOpen(false)}>
