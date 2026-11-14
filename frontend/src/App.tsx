@@ -200,7 +200,7 @@ export default function App() {
         if (cancel) return
         const list = snap.lists.find((item) => item.active) ?? snap.lists[0]
         const photos = (list?.sets ?? []).filter((set) => set.set_img_url)
-        setShowcase(photos.slice(0, 8))
+        setShowcase(photos.slice(0, 16))
       })
       .catch(() => {
         if (!cancel) setShowcase([])
@@ -214,19 +214,19 @@ export default function App() {
     let cancel = false
     void (async () => {
       try {
-        const uni = await api.exploreUniverses(8)
+        const uni = await api.exploreUniverses(10)
         if (!cancel) setUniverses(uni.universes)
       } catch {
         /* catalogue optionnel */
       }
       try {
-        const latest = await api.exploreLatest(12)
+        const latest = await api.exploreLatest(16)
         if (!cancel) setLatestSets(latest.sets)
       } catch {
         /* catalogue optionnel */
       }
       try {
-        const mocPack = await api.exploreMocs(8)
+        const mocPack = await api.exploreMocs(10)
         if (!cancel) setMocs(mocPack.mocs)
       } catch {
         /* clé API absente → fallback serveur ou vide */
@@ -925,26 +925,46 @@ export default function App() {
             {worldMeta.vibe}
           </p>
 
+          {/* ——— 1–3. Tatooine : hero → coffre → missions ——— */}
           <section
-            className="chapter chapter-long"
+            className="chapter"
             data-world="tatooine"
             ref={(node) => {
               chapterRefs.current.tatooine = node
             }}
           >
-            <div className="stage-top">
-              <section className="hero">
-                <p className="eyebrow">Tatooine · {HOME_CHAPTERS[0].title}</p>
+            <div className="chapter-hero">
+              <section className="hero hero-solo">
+                <p className="eyebrow">Tatooine</p>
                 <h1 className="hero-title">
-                  Quel set
+                  LEGO
                   <br />
-                  est-ce ?
+                  Guessr
                 </h1>
                 <p className="hero-lead">
-                  Charge ta collection, joue au Guess, tourne la roue sur Hoth,
-                  ou reconnais une minifig. Le catalogue Rebrickable alimente
-                  le reste du voyage.
+                  Ta collection devient un terrain de jeu. Descends : archives,
+                  univers, sorties, puis reviens jouer.
                 </p>
+                <div className="hero-cta">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy}
+                    onClick={() => void openGuess()}
+                  >
+                    Lancer un Guess
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => jumpToWorld('coruscant')}
+                  >
+                    Explorer le catalogue
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setListsOpen(true)}>
+                    Mes listes
+                  </button>
+                </div>
                 <dl className="stats">
                   <div>
                     <dt>Listes</dt>
@@ -955,125 +975,166 @@ export default function App() {
                     <dd>{setCount}</dd>
                   </div>
                   <div>
-                    <dt>Liste active</dt>
+                    <dt>Active</dt>
                     <dd>{active ? prettyName(active.name) : '—'}</dd>
                   </div>
                 </dl>
               </section>
-
-              <section className="home-modes">
-                <button
-                  type="button"
-                  className="mission mission-guess"
-                  disabled={busy}
-                  onClick={() => void openGuess()}
-                >
-                  <span className="mission-studs" aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <span className="mission-kicker">Mustafar · sets</span>
-                  <span className="mission-title">Guess</span>
-                  <span className="mission-desc">
-                    Indices, éliminations, un seul set de ta liste.
-                  </span>
-                  <span className="mission-stamp">SCAN</span>
-                </button>
-                <button
-                  type="button"
-                  className="mission mission-wheel"
-                  disabled={busy}
-                  onClick={() => void openWheel()}
-                >
-                  <span className="mission-ring" aria-hidden="true" />
-                  <span className="mission-kicker">Hoth · roue</span>
-                  <span className="mission-title">Roue</span>
-                  <span className="mission-desc">
-                    Trois sets sortent de la liste active, photo et stats.
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="mission mission-minifig"
-                  disabled={busy}
-                  onClick={() => void openMinifig()}
-                >
-                  <span className="mission-kicker">Geonosis · figs</span>
-                  <span className="mission-title">Minifigs</span>
-                  <span className="mission-desc">
-                    Une photo, quatre noms. Qui est cette figurine ?
-                  </span>
-                </button>
-              </section>
+              <div className="scroll-hint" aria-hidden="true">
+                <span>Descendre</span>
+                <i />
+              </div>
             </div>
 
-            <div className="chapter-block">
-              <header className="chapter-head">
-                <p className="eyebrow">Ta liste active</p>
-                <h2>Aperçu des sets</h2>
-                <p className="hero-lead">
-                  Importe un Excel dans Listes — les photos apparaissent ici.
-                </p>
+            {/* ——— 2. Vault collection ——— */}
+            <div className="band surface surface-sand">
+              <header className="band-head">
+                <div>
+                  <p className="eyebrow">Coffre</p>
+                  <h2>Ta collection en vitrine</h2>
+                  <p>
+                    {showcase.length
+                      ? `${showcase.length} sets de « ${prettyName(active?.name || 'ta liste')} » — le Guess pioche dedans.`
+                      : 'Importe un Excel : les boîtes s’installent ici.'}
+                  </p>
+                </div>
+                <button type="button" className="btn btn-ghost" onClick={() => setListsOpen(true)}>
+                  Gérer
+                </button>
               </header>
               {showcase.length > 0 ? (
-                <div className="rail" aria-label="Aperçu de la liste active">
-                  {showcase.map((set) => (
-                    <figure className="polaroid" key={set.set_num}>
-                      <div className="polaroid-frame">
-                        <SetImage
-                          src={set.set_img_url}
-                          alt={prettyName(set.name || set.set_num)}
-                          label={set.set_num.replace(/-\d+$/, '')}
-                        />
-                      </div>
-                      <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
+                <div className="vault-grid">
+                  {showcase.map((set, index) => (
+                    <figure
+                      key={set.set_num}
+                      className={`vault-cell vault-cell-${(index % 5) + 1}`}
+                    >
+                      <SetImage
+                        src={set.set_img_url}
+                        alt={prettyName(set.name || set.set_num)}
+                        label={set.set_num.replace(/-\d+$/, '')}
+                      />
+                      <figcaption>
+                        <strong>{prettyName(set.name || set.set_num)}</strong>
+                        <small>{set.set_num}</small>
+                      </figcaption>
                     </figure>
                   ))}
                 </div>
               ) : (
-                <p className="note">
-                  Aucune photo pour l’instant.{' '}
-                  <button type="button" className="text-link" onClick={() => setListsOpen(true)}>
-                    Ouvrir les listes
-                  </button>
-                </p>
+                <button type="button" className="empty-vault" onClick={() => setListsOpen(true)}>
+                  <strong>Importer ta première liste</strong>
+                  <span>Excel Rebrickable / wishlist — photos et stats suivent.</span>
+                </button>
               )}
+            </div>
+
+            {/* ——— 3. Missions ——— */}
+            <div className="band surface surface-ember">
+              <header className="band-head">
+                <div>
+                  <p className="eyebrow">Missions</p>
+                  <h2>Trois façons de jouer</h2>
+                  <p>Guess sur ta liste, roue glacée sur Hoth, minifigs du catalogue mondial.</p>
+                </div>
+              </header>
+              <div className="mission-lanes">
+                <button
+                  type="button"
+                  className="lane lane-guess"
+                  disabled={busy}
+                  onClick={() => void openGuess()}
+                >
+                  <span className="lane-kicker">01 · Mustafar</span>
+                  <strong>Guess sets</strong>
+                  <span>Quatre suspects, indices, éliminations. Un seul gagnant.</span>
+                </button>
+                <button
+                  type="button"
+                  className="lane lane-wheel"
+                  disabled={busy}
+                  onClick={() => void openWheel()}
+                >
+                  <span className="lane-kicker">02 · Hoth</span>
+                  <strong>Roue</strong>
+                  <span>Tourne. Trois sets sortent de la liste active.</span>
+                </button>
+                <button
+                  type="button"
+                  className="lane lane-fig"
+                  disabled={busy}
+                  onClick={() => void openMinifig()}
+                >
+                  <span className="lane-kicker">03 · Geonosis</span>
+                  <strong>Guess minifig</strong>
+                  <span>Une photo Rebrickable, quatre noms. Qui est-ce ?</span>
+                </button>
+              </div>
             </div>
           </section>
 
+          {/* ——— 4. Coruscant archives ——— */}
           <section
-            className="chapter chapter-long chapter-night"
+            className="chapter chapter-night-start"
             data-world="coruscant"
             ref={(node) => {
               chapterRefs.current.coruscant = node
             }}
           >
-            <header className="chapter-head">
+            <div className="night-gate surface surface-night">
               <p className="eyebrow">Coruscant · nuit</p>
               <h2>{HOME_CHAPTERS[1].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[1].lead}</p>
-            </header>
+              <p className="hero-lead">
+                Catalogue officiel Rebrickable — pas du remplissage : univers,
+                sorties, MOCs.
+              </p>
+            </div>
 
-            <div className="explore-block">
-              <div className="explore-head">
-                <h3>Univers</h3>
-                <p>Star Wars, Seigneur des Anneaux, Hobbit — tirés du catalogue officiel.</p>
-              </div>
-              {!exploreReady && <p className="note">Chargement du catalogue…</p>}
-              <div className="universe-grid">
-                {universes.map((pack) => (
-                  <article key={pack.id} className="universe-card">
-                    <header>
-                      <strong>{pack.name}</strong>
-                      <small>{pack.total} sets connus</small>
-                    </header>
-                    <div className="universe-rail">
-                      {pack.sets.slice(0, 4).map((set) => (
+            {!exploreReady && (
+              <p className="note surface surface-night">Chargement du catalogue…</p>
+            )}
+
+            {universes.map((pack, packIndex) => {
+              const hero = pack.sets[0]
+              const rest = pack.sets.slice(1, 7)
+              return (
+                <article
+                  key={pack.id}
+                  className={`universe-spread surface surface-night spread-${packIndex}`}
+                >
+                  <header className="spread-head">
+                    <div>
+                      <p className="eyebrow">Univers</p>
+                      <h3>{pack.name}</h3>
+                      <p>{pack.total.toLocaleString('fr-FR')} sets dans le catalogue</p>
+                    </div>
+                  </header>
+                  <div className="spread-body">
+                    {hero && (
+                      <a
+                        className="spread-hero"
+                        href={hero.set_url || `https://rebrickable.com/sets/${hero.set_num}/`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <SetImage
+                          src={hero.set_img_url}
+                          alt={prettyName(hero.name || hero.set_num)}
+                          label={hero.set_num.replace(/-\d+$/, '')}
+                        />
+                        <div>
+                          <strong>{prettyName(hero.name || hero.set_num)}</strong>
+                          <small>
+                            {hero.year ?? '—'} · {hero.num_parts ?? '?'} pcs
+                          </small>
+                        </div>
+                      </a>
+                    )}
+                    <div className="spread-grid">
+                      {rest.map((set) => (
                         <a
                           key={set.set_num}
-                          className="universe-tile"
+                          className="spread-tile"
                           href={set.set_url || `https://rebrickable.com/sets/${set.set_num}/`}
                           target="_blank"
                           rel="noreferrer"
@@ -1087,21 +1148,24 @@ export default function App() {
                         </a>
                       ))}
                     </div>
-                  </article>
-                ))}
-              </div>
-            </div>
+                  </div>
+                </article>
+              )
+            })}
 
-            <div className="explore-block">
-              <div className="explore-head">
-                <h3>Dernières sorties</h3>
-                <p>Les sets les plus récents du dump Rebrickable.</p>
-              </div>
-              <div className="catalog-grid">
+            <section className="band surface surface-night">
+              <header className="band-head">
+                <div>
+                  <p className="eyebrow">Radar</p>
+                  <h2>Dernières sorties</h2>
+                  <p>Les sets retail les plus récents du dump Rebrickable.</p>
+                </div>
+              </header>
+              <div className="poster-rail">
                 {latestSets.map((set) => (
                   <a
                     key={set.set_num}
-                    className="catalog-card"
+                    className="poster-card"
                     href={set.set_url || `https://rebrickable.com/sets/${set.set_num}/`}
                     target="_blank"
                     rel="noreferrer"
@@ -1110,24 +1174,27 @@ export default function App() {
                     <div className="meta">
                       <strong>{prettyName(set.name || set.set_num)}</strong>
                       <small>
-                        {set.year ?? '—'} · {set.num_parts ?? '?'} pcs · {set.set_num}
+                        {set.year} · {set.num_parts ?? '?'} pcs
                       </small>
                     </div>
                   </a>
                 ))}
               </div>
-            </div>
+            </section>
 
-            <div className="explore-block">
-              <div className="explore-head">
-                <h3>MOCs récents</h3>
-                <p>Sélection Rebrickable (API si clé dispo, sinon sélection éditoriale).</p>
-              </div>
-              <div className="catalog-grid">
-                {mocs.map((moc) => (
+            <section className="band surface surface-night">
+              <header className="band-head">
+                <div>
+                  <p className="eyebrow">Atelier</p>
+                  <h2>MOCs à surveiller</h2>
+                  <p>Créations Rebrickable — API si clé, sinon sélection éditoriale.</p>
+                </div>
+              </header>
+              <div className="moc-mosaic">
+                {mocs.map((moc, index) => (
                   <a
                     key={moc.set_num}
-                    className="catalog-card"
+                    className={`moc-card moc-${(index % 3) + 1}`}
                     href={moc.set_url || `https://rebrickable.com/mocs/${moc.set_num}/`}
                     target="_blank"
                     rel="noreferrer"
@@ -1143,9 +1210,10 @@ export default function App() {
                   </a>
                 ))}
               </div>
-            </div>
+            </section>
           </section>
 
+          {/* ——— 5. Mustafar close ——— */}
           <footer
             className="chapter chapter-footer"
             data-world="mustafar"
@@ -1153,25 +1221,31 @@ export default function App() {
               chapterRefs.current.mustafar = node
             }}
           >
-            <header className="chapter-head">
+            <div className="surface surface-lava finale">
               <p className="eyebrow">Mustafar</p>
-              <h2>{HOME_CHAPTERS[2].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[2].lead}</p>
-            </header>
-            <div className="footer-actions">
-              <button type="button" className="btn btn-primary" onClick={() => setListsOpen(true)}>
-                Gérer mes listes
-              </button>
-              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void openMinifig()}>
-                Guess minifig
-              </button>
-              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void openWheel()}>
-                Roue Hoth
-              </button>
+              <h2>Fin de transmission</h2>
+              <p className="hero-lead">
+                Reviens jouer, enrichis une liste, ou exporte un PDF depuis tes archives.
+              </p>
+              <div className="finale-grid">
+                <button type="button" className="finale-card" disabled={busy} onClick={() => void openGuess()}>
+                  <span>Guess</span>
+                  <strong>Nouvelle manche</strong>
+                </button>
+                <button type="button" className="finale-card" disabled={busy} onClick={() => void openWheel()}>
+                  <span>Hoth</span>
+                  <strong>Tourner la roue</strong>
+                </button>
+                <button type="button" className="finale-card" disabled={busy} onClick={() => void openMinifig()}>
+                  <span>Minifig</span>
+                  <strong>Qui est-ce ?</strong>
+                </button>
+                <button type="button" className="finale-card" onClick={() => setListsOpen(true)}>
+                  <span>Archives</span>
+                  <strong>Listes & PDF</strong>
+                </button>
+              </div>
             </div>
-            <p className="ember-note">
-              Le PDF se crée depuis chaque liste (bouton PDF), pas depuis le menu.
-            </p>
           </footer>
 
           {message && <div className={`message ${messageOk ? 'ok' : ''}`}>{message}</div>}

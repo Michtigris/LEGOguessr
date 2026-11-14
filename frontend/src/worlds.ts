@@ -85,18 +85,18 @@ export const HOME_CHAPTERS: Array<{
 }> = [
   {
     id: 'tatooine',
-    title: 'Départ sur les dunes',
-    lead: 'Deux soleils. Une liste. Une mission.',
+    title: 'Dunes',
+    lead: 'Collection, missions, puis la nuit.',
   },
   {
     id: 'coruscant',
     title: 'Archives de la nuit',
-    lead: 'Univers, sorties, MOCs — le vrai catalogue, pas du remplissage.',
+    lead: 'Univers, sorties, MOCs.',
   },
   {
     id: 'mustafar',
     title: 'Fin de transmission',
-    lead: 'La lave clôt le voyage. Reviens quand tu veux.',
+    lead: 'Rejouer ou exporter.',
   },
 ]
 

@@ -130,10 +130,25 @@
 .world-cast {
   position: fixed;
   inset: 0;
-  z-index: 2;
+  z-index: 1;
   pointer-events: none;
   overflow: visible;
 }
+
+/* Sur l’accueil : figurines discrètes, le contenu passe devant */
+.app-home .world-cast {
+  opacity: 0.42;
+  filter: saturate(0.9);
+}
+
+.app-home.world-coruscant .world-cast,
+.app-home.world-mustafar .world-cast {
+  opacity: 0.2;
+}
+
+.app-home .cast-xl { width: min(168px, 22vw); }
+.app-home .cast-lg { width: min(128px, 18vw); }
+.app-home .cast-md { width: min(96px, 14vw); }
 
 .cast-figure {
   position: absolute;
@@ -318,29 +333,27 @@
 }
 
 .chapter {
-  min-height: 70vh;
-  padding: 1.5rem 0 2.5rem;
+  padding: 1.25rem 0 2rem;
   scroll-margin-top: 5rem;
 }
 
-.chapter-long {
-  min-height: 115vh;
-  padding: 2.2rem 0 4rem;
-}
-
-.chapter-night {
-  min-height: 120vh;
+.chapter-hero {
+  min-height: calc(100vh - 5.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem 0 2.5rem;
 }
 
 .chapter-footer {
-  min-height: 48vh;
-  padding: 3rem 0 5rem;
-  border-top: 1px solid color-mix(in srgb, #ff6a2a 35%, transparent);
-  background: linear-gradient(180deg, transparent, rgba(40, 8, 4, 0.32));
+  margin-top: 2rem;
+  padding: 3.5rem 0 5rem;
+  border-top: 1px solid color-mix(in srgb, #ff6a2a 40%, transparent);
+  background: linear-gradient(180deg, transparent 0%, rgba(48, 10, 6, 0.55) 40%, rgba(20, 4, 2, 0.72));
 }
 
 .chapter-block {
-  margin-top: 3.2rem;
+  margin-top: 2.4rem;
 }
 
 .chapter-head {
