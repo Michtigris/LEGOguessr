@@ -1,4 +1,4 @@
-/* ——— Univers Star Wars ——— */
+/* ——— Univers Star Wars × style vectoriel Code BH ——— */
 
 .world-sky {
   position: fixed;
@@ -6,107 +6,59 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  background: #10141c;
 }
 
-.world-sky-layer {
+.vector-biome {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 0.9s ease;
+  transition: opacity 0.85s ease;
 }
 
-.world-sky-layer.is-on {
+.vector-biome.is-on {
   opacity: 1;
 }
 
-.world-sky-tatooine {
-  background:
-    radial-gradient(900px 420px at 18% 8%, rgba(255, 232, 31, 0.45), transparent 55%),
-    radial-gradient(700px 380px at 90% 0%, rgba(255, 170, 70, 0.35), transparent 50%),
-    linear-gradient(180deg, #f7e4b8 0%, #f0d7a4 45%, #c9954e 100%);
+.biome-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.world-sky-hoth {
-  background:
-    radial-gradient(700px 360px at 70% 10%, rgba(255, 255, 255, 0.7), transparent 50%),
-    linear-gradient(180deg, #e8eef6 0%, #c9d7e8 40%, #8eabc8 100%);
+.parallax-far {
+  animation: parallax-drift 28s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.world-sky-kashyyyk {
-  background:
-    radial-gradient(600px 400px at 20% 80%, rgba(40, 90, 40, 0.35), transparent 50%),
-    linear-gradient(180deg, #b7d39a 0%, #5f8f4a 45%, #243d22 100%);
+.parallax-mid {
+  animation: parallax-drift 18s ease-in-out infinite reverse;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.world-sky-kamino {
-  background:
-    radial-gradient(800px 400px at 50% 0%, rgba(180, 220, 255, 0.35), transparent 55%),
-    linear-gradient(180deg, #6a849c 0%, #2a3f55 40%, #0f1c2a 100%);
+.parallax-near {
+  animation: parallax-near 10s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center bottom;
 }
 
-.world-sky-geonosis {
-  background:
-    radial-gradient(700px 380px at 60% 20%, rgba(255, 160, 80, 0.35), transparent 50%),
-    linear-gradient(180deg, #e8b56a 0%, #b56a32 50%, #5a2a14 100%);
+.lava-glow {
+  animation: lava 2.8s ease-in-out infinite;
 }
 
-.world-sky-mustafar {
-  background:
-    radial-gradient(700px 420px at 50% 100%, rgba(255, 80, 20, 0.45), transparent 55%),
-    linear-gradient(180deg, #2a1210 0%, #4a180c 40%, #120808 100%);
+.wave-flat {
+  animation: wave 4.5s ease-in-out infinite;
 }
 
-.world-sky-endor {
-  background:
-    radial-gradient(600px 360px at 30% 20%, rgba(200, 255, 180, 0.25), transparent 50%),
-    linear-gradient(180deg, #d7e8c4 0%, #6f9b55 50%, #2a4a28 100%);
-}
-
-.world-sky-scarif {
-  background:
-    radial-gradient(700px 380px at 80% 10%, rgba(255, 240, 160, 0.45), transparent 50%),
-    linear-gradient(180deg, #9ad7ef 0%, #3aa0c8 35%, #1c6f7a 70%, #d8c07a 100%);
-}
-
-.world-sky-coruscant {
-  background:
-    radial-gradient(800px 420px at 70% 0%, rgba(120, 80, 255, 0.22), transparent 55%),
-    radial-gradient(600px 360px at 10% 80%, rgba(94, 200, 255, 0.18), transparent 50%),
-    linear-gradient(180deg, #14182a 0%, #0a0f1c 55%, #1a1020 100%);
+.traffic-flat {
+  animation: drift 12s linear infinite;
 }
 
 .world-fx {
   position: absolute;
   inset: 0;
-}
-
-.fx-sun {
-  position: absolute;
-  border-radius: 50%;
-  top: 8%;
-  right: 16%;
-  width: 70px;
-  height: 70px;
-  background: radial-gradient(circle at 35% 35%, #fff7c8, #ffe81f 45%, #f0a020 100%);
-  box-shadow: 0 0 60px rgba(255, 200, 60, 0.55);
-  animation: sun-pulse 6s ease-in-out infinite;
-}
-
-.fx-sun.b {
-  top: 13%;
-  right: 11%;
-  width: 42px;
-  height: 42px;
-  animation-delay: 0.5s;
-}
-
-.fx-heat {
-  position: absolute;
-  inset: 20% 10% auto;
-  height: 35%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent);
-  filter: blur(14px);
-  animation: heatwave 4s ease-in-out infinite;
 }
 
 .fx-snow,
@@ -287,91 +239,14 @@
   50% { transform: translateY(2px) scale(1.015, 0.985); }
 }
 
-.prop {
-  position: absolute;
-  pointer-events: none;
+@keyframes parallax-drift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(12px); }
 }
 
-.dune {
-  left: -8%;
-  right: -8%;
-  bottom: -6%;
-  height: 24vh;
-  border-radius: 50% 50% 0 0;
-  background: #c9954e;
-}
-
-.dune-b {
-  bottom: -10%;
-  height: 16vh;
-  left: 18%;
-  background: #b9843f;
-}
-
-.mist {
-  inset: 40% 0 0;
-  background: linear-gradient(180deg, transparent, rgba(30, 60, 30, 0.35));
-}
-
-.wave {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 18vh;
-  background: linear-gradient(180deg, transparent, rgba(20, 50, 80, 0.55));
-  animation: wave 5s ease-in-out infinite;
-}
-
-.ice {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 16vh;
-  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.45));
-}
-
-.shore {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 14vh;
-  background: linear-gradient(180deg, transparent, rgba(216, 192, 122, 0.7));
-}
-
-.moss {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 12vh;
-  background: linear-gradient(180deg, transparent, rgba(40, 80, 40, 0.45));
-}
-
-.arena {
-  left: 10%;
-  right: 10%;
-  bottom: 4%;
-  height: 12vh;
-  border: 3px solid rgba(90, 40, 10, 0.35);
-  border-radius: 50%;
-}
-
-.lava {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 18vh;
-  background: linear-gradient(180deg, transparent, rgba(255, 70, 20, 0.55));
-  animation: lava 3s ease-in-out infinite;
-}
-
-.towers {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 28vh;
-  background:
-    linear-gradient(90deg, rgba(20, 24, 40, 0.9) 8%, transparent 8% 14%, rgba(20, 24, 40, 0.85) 14% 18%, transparent 18% 30%, rgba(20, 24, 40, 0.9) 30% 36%, transparent 36% 55%, rgba(20, 24, 40, 0.88) 55% 62%, transparent 62% 78%, rgba(20, 24, 40, 0.92) 78% 86%, transparent 86%);
-  opacity: 0.55;
+@keyframes parallax-near {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 /* Nav mondes */
@@ -394,10 +269,10 @@
 .world-nav-dot {
   border: 0;
   background: transparent;
-  color: inherit;
+  color: #f4efe4;
   text-align: right;
-  padding: 0.2rem 0.35rem;
-  opacity: 0.45;
+  padding: 0.15rem 0.2rem;
+  opacity: 0.4;
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -406,8 +281,10 @@
 
 .world-nav-dot span {
   display: inline-block;
-  padding: 0.2rem 0.45rem;
-  border-right: 2px solid currentColor;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(12, 16, 24, 0.55);
+  backdrop-filter: blur(8px);
 }
 
 .world-nav-dot.is-active,
@@ -421,18 +298,23 @@
   align-items: center;
   gap: 0.65rem;
   margin: 0 0 1rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  font-size: 0.82rem;
-  max-width: 100%;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(12, 16, 24, 0.72);
+  color: #f4efe4;
+  font-size: 0.84rem;
+  max-width: min(100%, 34rem);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
 }
 
 .world-chip span {
   font-family: var(--font-display);
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--accent, #9a5a10);
+  color: #ffe81f;
 }
 
 .chapter {
@@ -453,9 +335,9 @@
 .chapter-head h2 {
   margin: 0.2rem 0 0.4rem;
   font-family: var(--font-display);
-  font-size: clamp(2.4rem, 6vw, 4rem);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .platform-steps,

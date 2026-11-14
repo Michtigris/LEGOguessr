@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { WorldId } from './worlds'
 import { HOME_CHAPTERS, WORLDS } from './worlds'
+import { VectorBiome } from './VectorBiomes'
 
 type CastId = 'jawa' | 'trooper' | 'r2' | 'chewie' | 'c3po' | 'vader' | 'ewok' | 'yoda'
 
@@ -179,43 +180,19 @@ function CastFigure({
   )
 }
 
-/** Fond immersif du monde courant (crossfade). */
+/** Fond immersif vectoriel (crossfade Code BH × Star Wars). */
 export function WorldSky({ world }: { world: WorldId }) {
   return (
     <div className="world-sky" aria-hidden="true">
       {(Object.keys(WORLDS) as WorldId[]).map((id) => (
-        <div key={id} className={`world-sky-layer world-sky-${id} ${id === world ? 'is-on' : ''}`} />
+        <VectorBiome key={id} world={id} active={id === world} />
       ))}
       <div className={`world-fx world-fx-${world}`}>
-        {world === 'tatooine' && (
-          <>
-            <span className="fx-sun a" />
-            <span className="fx-sun b" />
-            <span className="fx-heat" />
-          </>
-        )}
         {world === 'hoth' && <span className="fx-snow" />}
         {world === 'kamino' && <span className="fx-rain" />}
         {world === 'mustafar' && <span className="fx-ember" />}
         {world === 'coruscant' && <span className="fx-neon" />}
-        {world === 'scarif' && <span className="fx-sparkle" />}
-        {world === 'kashyyyk' && <span className="fx-spores" />}
-        {world === 'endor' && <span className="fx-motes" />}
-        {world === 'geonosis' && <span className="fx-dust" />}
       </div>
-      {(world === 'tatooine' || world === 'geonosis') && (
-        <>
-          <div className="prop dune dune-a" />
-          <div className="prop dune dune-b" />
-        </>
-      )}
-      {world === 'kashyyyk' && <div className="prop mist" />}
-      {world === 'kamino' && <div className="prop wave" />}
-      {world === 'hoth' && <div className="prop ice" />}
-      {world === 'scarif' && <div className="prop shore" />}
-      {world === 'endor' && <div className="prop moss" />}
-      {world === 'mustafar' && <div className="prop lava" />}
-      {world === 'coruscant' && <div className="prop towers" />}
     </div>
   )
 }
