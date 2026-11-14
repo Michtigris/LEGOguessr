@@ -180,27 +180,112 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.puppet {
+.cast-figure {
   position: absolute;
-  display: block;
-  width: 78px;
-  height: auto;
-  filter: drop-shadow(0 10px 12px rgba(20, 20, 20, 0.22));
+  margin: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 18px 22px rgba(15, 12, 8, 0.35));
+  animation: bob 4s ease-in-out infinite;
+  transition: transform 0.25s ease;
 }
 
-.cast-a { left: 3%; bottom: 10%; width: 78px; }
-.cast-b { right: 3%; bottom: 16%; width: 70px; }
-.cast-c { left: 10%; top: 26%; width: 84px; }
-.cast-d { right: 14%; top: 16%; width: 120px; }
-.cast-tree-l { left: -1%; bottom: 0; width: 110px; opacity: 0.9; }
-.cast-tree-r { right: -2%; bottom: 0; width: 130px; opacity: 0.85; }
-.cast-platform { left: 50%; bottom: 8%; width: 180px; transform: translateX(-50%); }
-.cast-palm-l { left: 2%; bottom: 0; width: 70px; }
-.cast-palm-r { right: 4%; bottom: 0; width: 80px; }
-.cast-traffic { right: 8%; top: 18%; width: 140px; }
+.cast-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.cast-md { width: min(160px, 28vw); }
+.cast-lg { width: min(240px, 38vw); }
+.cast-xl { width: min(340px, 48vw); }
+
+.cast-pose-a { left: 1.5%; bottom: 0; animation-delay: 0s; }
+.cast-pose-b { right: 1.5%; bottom: 2%; animation-delay: -1.2s; }
+.cast-pose-c { left: 8%; top: 22%; width: min(150px, 24vw); animation-delay: -0.6s; }
+.cast-pose-d { right: 10%; top: 18%; width: min(170px, 26vw); animation-delay: -1.8s; }
+
+.cast-mouth {
+  position: absolute;
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.cast-mouth:hover,
+.cast-mouth:focus-visible {
+  outline: 2px solid rgba(255, 232, 31, 0.85);
+  outline-offset: 2px;
+  background: rgba(255, 232, 31, 0.12);
+}
+
+.cast-figure.is-talking img {
+  animation: talk-bounce 0.35s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+.cast-bubble {
+  position: absolute;
+  left: 58%;
+  top: -0.4rem;
+  transform: translateY(-100%);
+  min-width: 160px;
+  max-width: 230px;
+  padding: 0.7rem 0.8rem 0.75rem;
+  background: #fffdf8;
+  color: #1a120c;
+  border: 2px solid #1a120c;
+  box-shadow: 8px 10px 0 rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  animation: pop 0.22s ease both;
+  z-index: 5;
+}
+
+.cast-bubble::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  bottom: -10px;
+  border-width: 10px 8px 0 8px;
+  border-style: solid;
+  border-color: #1a120c transparent transparent transparent;
+}
+
+.cast-bubble strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+  color: #8a4f00;
+}
+
+.cast-bubble span {
+  display: block;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.cast-pose-b .cast-bubble,
+.cast-pose-d .cast-bubble {
+  left: auto;
+  right: 58%;
+}
+
+@keyframes talk-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(2px) scale(1.015, 0.985); }
+}
 
 .prop {
   position: absolute;
@@ -497,10 +582,11 @@
     grid-template-columns: 1fr;
   }
 
-  .cast-c,
-  .cast-d,
-  .cast-tree-l,
-  .cast-traffic {
+  .cast-pose-c,
+  .cast-pose-d {
     display: none;
   }
+
+  .cast-xl { width: min(220px, 46vw); }
+  .cast-lg { width: min(170px, 36vw); }
 }
