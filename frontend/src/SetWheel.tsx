@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 type Segment = { set_num: string; name: string }
 
-const COLORS = ['#171614', '#d0121a', '#f6c445', '#efe8da', '#8d4a32', '#2f6f8f']
+const COLORS = ['#FFE81F', '#4DA6FF', '#E10600', '#1a3a6a', '#D6B87A', '#0B1220']
 
 type Props = {
   segments: Segment[]

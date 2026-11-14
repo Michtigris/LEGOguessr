@@ -115,18 +115,48 @@ function AppMenu({
   )
 }
 
+function SetImage({
+  src,
+  alt,
+  label,
+}: {
+  src?: string | null
+  alt: string
+  label?: string
+}) {
+  const [broken, setBroken] = useState(!src)
+
+  return broken || !src ? (
+    <div className="img-fallback" aria-hidden={!alt}>
+      <span className="img-fallback-kicker">SET</span>
+      <strong>{label || alt || '???'}</strong>
+    </div>
+  ) : (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className="set-img"
+      onError={() => setBroken(true)}
+    />
+  )
+}
+
 function SetPlate({
   src,
   alt,
   fallback = false,
+  label,
 }: {
   src?: string | null
   alt: string
   fallback?: boolean
+  label?: string
 }) {
+  if (!src && !fallback) return <div className="set-plate" />
   return (
     <div className="set-plate">
-      {src ? <img src={src} alt={alt} loading="lazy" /> : fallback ? <div className="img-fallback" /> : null}
+      <SetImage src={src} alt={alt} label={label || alt} />
     </div>
   )
 }
@@ -523,6 +553,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="starfield" aria-hidden="true" />
       <header className="top-hero">
         <div className={`top-hero-row burger-${burgerSide}`} ref={heroRowRef}>
           <button
@@ -743,15 +774,15 @@ export default function App() {
         <main className="stage">
           <div className="stage-top">
           <section className="hero">
-            <p className="eyebrow">Collection · deviner · tirer au sort</p>
+            <p className="eyebrow">Transmission · archives · mission</p>
             <h1 className="hero-title">
               Quel set
               <br />
               est-ce ?
             </h1>
             <p className="hero-lead">
-              Tes listes deviennent un jeu. Quatre photos, trois indices, une
-              roue. Le PDF catalogue est dans le menu.
+              Charge une liste, lance une mission. Quatre suspects, trois
+              indices, une roue. Le catalogue PDF est dans le menu.
             </p>
             <dl className="stats">
               <div>
@@ -776,10 +807,10 @@ export default function App() {
               disabled={busy}
               onClick={() => void openGuess()}
             >
-              <span className="big-mode-kicker">01 — Guess</span>
-              <span className="big-mode-title">Quatre suspects.</span>
+              <span className="big-mode-kicker">Mission 01</span>
+              <span className="big-mode-title">Guess</span>
               <span className="big-mode-desc">
-                Année, pièces, figurines. Élimine les photos, puis valide le set.
+                Indices, éliminations, un seul set. Trouve-le avant de valider.
               </span>
             </button>
             <button
@@ -788,20 +819,26 @@ export default function App() {
               disabled={busy}
               onClick={() => void openWheel()}
             >
-              <span className="big-mode-kicker">02 — Roue</span>
-              <span className="big-mode-title">Laisse tourner.</span>
+              <span className="big-mode-kicker">Mission 02</span>
+              <span className="big-mode-title">Roue</span>
               <span className="big-mode-desc">
-                La roue tire trois sets de la liste active, avec photo et stats.
+                Tourne. Trois sets sortent de la liste active, photo et stats.
               </span>
             </button>
           </section>
           </div>
 
           {showcase.length > 0 && (
-            <div className="rail" aria-hidden="true">
+            <div className="rail" aria-label="Aperçu de la liste active">
               {showcase.map((set) => (
                 <figure className="polaroid" key={set.set_num}>
-                  <img src={set.set_img_url || ''} alt="" />
+                  <div className="polaroid-frame">
+                    <SetImage
+                      src={set.set_img_url}
+                      alt={prettyName(set.name || set.set_num)}
+                      label={set.set_num.replace(/-\d+$/, '')}
+                    />
+                  </div>
                   <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
                 </figure>
               ))}
@@ -812,17 +849,17 @@ export default function App() {
             <article>
               <span>01</span>
               <h3>Importe</h3>
-              <p>Wishlist, saga, ou export Rebrickable. Le menu ouvre les archives.</p>
+              <p>Wishlist, saga, export Rebrickable. Le menu ouvre les archives.</p>
             </article>
             <article>
               <span>02</span>
-              <h3>Ça se remplit</h3>
-              <p>Nom, photo, année et nombre de pièces arrivent depuis le catalogue.</p>
+              <h3>Scan</h3>
+              <p>Noms, photos, années et pièces se branchent sur le catalogue.</p>
             </article>
             <article>
               <span>03</span>
-              <h3>Joue ou imprime</h3>
-              <p>Guess, roue, ou un PDF trié du plus gros set au plus petit.</p>
+              <h3>Mission</h3>
+              <p>Guess, roue, ou un PDF du plus gros set au plus petit.</p>
             </article>
           </section>
 
