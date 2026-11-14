@@ -265,6 +265,7 @@ export default function App() {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (navLock.current) return
         const visible = entries
           .filter((entry) => entry.isIntersecting)
           .sort(
@@ -600,8 +601,12 @@ export default function App() {
 
   function jumpToWorld(id: WorldId) {
     const node = chapterRefs.current[id]
-    node?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    navLock.current = true
     setWorld(id)
+    node?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.setTimeout(() => {
+      navLock.current = false
+    }, 900)
   }
 
   return (
