@@ -3,6 +3,7 @@ import {
   api,
   loadArchive,
   saveArchive,
+  type ArchiveSet,
   type GuessResult,
   type GuessRound,
   type SetList,
@@ -12,10 +13,8 @@ import { SetWheel } from './SetWheel'
 
 type Screen = 'home' | 'guess' | 'wheel'
 
-const SCENE_BY_SCREEN: Record<Screen, string> = {
-  home: 'tatooine',
-  guess: 'mustafar',
-  wheel: 'coruscant',
+function prettyName(name: string) {
+  return name.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 function formatRange([low, high]: [number, number]) {
@@ -103,7 +102,7 @@ function AppMenu({
                       onExport(list.id)
                     }}
                   >
-                    <strong>{list.name}</strong>
+                    <strong>{prettyName(list.name)}</strong>
                     <small>{list.total ? `${list.total} sets` : 'vide'}</small>
                   </button>
                 </li>
@@ -159,9 +158,12 @@ export default function App() {
   const [wheelSpinning, setWheelSpinning] = useState(false)
   const [wheelRevealed, setWheelRevealed] = useState(false)
   const [burgerSide, setBurgerSide] = useState<'left' | 'right'>('right')
+  const [showcase, setShowcase] = useState<ArchiveSet[]>([])
+  const [renamingId, setRenamingId] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const enrichBoot = useRef(false)
   const heroRowRef = useRef<HTMLDivElement>(null)
-  const brandRef = useRef<HTMLHeadingElement>(null)
+  const brandRef = useRef<HTMLButtonElement>(null)
 
   useLayoutEffect(() => {
     const row = heroRowRef.current
@@ -184,6 +186,25 @@ export default function App() {
     observer.observe(row)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    if (screen !== 'home') return
+    let cancel = false
+    api
+      .snapshot()
+      .then((snap) => {
+        if (cancel) return
+        const list = snap.lists.find((item) => item.active) ?? snap.lists[0]
+        const photos = (list?.sets ?? []).filter((set) => set.set_img_url)
+        setShowcase(photos.slice(0, 7))
+      })
+      .catch(() => {
+        if (!cancel) setShowcase([])
+      })
+    return () => {
+      cancel = true
+    }
+  }, [screen, active?.id, active?.enriched])
 
   const refreshLists = useCallback(async () => {
     let data = await api.lists()
@@ -353,9 +374,27 @@ export default function App() {
       setActiveListId(result.active_list_id)
       setActive(result.active)
       setSelectedListId(id)
-      flash(true, `Liste « ${result.active?.name} » sélectionnée.`)
+      flash(true, `Liste « ${prettyName(result.active?.name || '')} » sélectionnée.`)
     } catch (err) {
       flash(false, err instanceof Error ? err.message : 'Sélection impossible')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function renameList(id: number) {
+    const name = renameValue.trim()
+    if (!name) return
+    setBusy(true)
+    try {
+      const result = await api.renameList(id, name)
+      setLists(result.lists)
+      setActiveListId(result.active_list_id)
+      setActive(result.active)
+      setRenamingId(null)
+      flash(true, `Liste renommée « ${prettyName(name)} ».`)
+    } catch (err) {
+      flash(false, err instanceof Error ? err.message : 'Renommage impossible')
     } finally {
       setBusy(false)
     }
@@ -364,7 +403,7 @@ export default function App() {
   async function deleteList(id: number) {
     const target = lists.find((l) => l.id === id)
     if (!target) return
-    if (!window.confirm(`Effacer la liste « ${target.name} » ?`)) return
+    if (!window.confirm(`Effacer la liste « ${prettyName(target.name)} » ?`)) return
     setBusy(true)
     try {
       const result = await api.deleteList(id)
@@ -480,22 +519,23 @@ export default function App() {
     }
   }
 
+  const setCount = lists.reduce((total, list) => total + list.total, 0)
+
   return (
     <div className="app">
-      <div className="scene-bg" aria-hidden="true">
-        {(['tatooine', 'naboo', 'mustafar', 'coruscant'] as const).map((scene) => (
-          <div
-            key={scene}
-            className={`scene-bg-layer ${scene} ${
-              (listsOpen ? 'naboo' : SCENE_BY_SCREEN[screen]) === scene ? 'visible' : ''
-            }`}
-          />
-        ))}
-        <div className="scene-bg-veil" />
-      </div>
-
       <header className="top-hero">
         <div className={`top-hero-row burger-${burgerSide}`} ref={heroRowRef}>
+          <button
+            type="button"
+            className="brand"
+            ref={brandRef}
+            onClick={() => {
+              setScreen('home')
+              setListsOpen(false)
+            }}
+          >
+            LEGO Guessr
+          </button>
           <AppMenu
             lists={lists}
             side={burgerSide}
@@ -505,20 +545,7 @@ export default function App() {
             onToggleLists={() => setListsOpen((open) => !open)}
             onExport={(id) => void exportListPdf(id)}
           />
-          <h1 className="brand" ref={brandRef}>
-            LEGO Guessr
-          </h1>
         </div>
-        <p className="tagline">
-          {active ? (
-            <>
-              Transmission active · <strong>{active.name}</strong> ·{' '}
-              {active.enriched}/{active.total} sets scannés
-            </>
-          ) : (
-            <>Charge une liste de sets, puis choisis ta mission.</>
-          )}
-        </p>
       </header>
 
       {message && screen !== 'home' && !listsOpen && (
@@ -529,12 +556,12 @@ export default function App() {
         <section className="panel lists-panel">
           <div className="topbar">
             <div>
-              <h2>Archives de sets</h2>
-              <p className="lead" style={{ marginBottom: 0 }}>
-                Importe un Excel (ex. <code>75372-1,13,1</code> = set, quantité,
-                version). La quantité compte pour la roue ; le Guess utilise des
-                sets uniques. Sur le site, tes listes restent liées à ce
-                navigateur : tu les retrouves même une semaine plus tard.
+              <p className="eyebrow">Archives</p>
+              <h2>Tes listes</h2>
+              <p className="lead">
+                Un Excel suffit : numéro de set, quantité, version. La quantité
+                pèse dans la roue, le Guess tire des sets uniques. Tout reste
+                dans ce navigateur.
               </p>
             </div>
             <button type="button" className="btn btn-ghost" onClick={() => setListsOpen(false)}>
@@ -543,10 +570,9 @@ export default function App() {
           </div>
 
           {!lists.length && (
-            <div className="message">
-              Aucune liste. Importe un Excel avec une grande liste de sets pour
-              commencer (ex. Film, Série, Jeux).
-            </div>
+            <p className="note">
+              Aucune liste pour l’instant. Importe un Excel pour commencer.
+            </p>
           )}
 
           <ul className="list-rows">
@@ -558,17 +584,44 @@ export default function App() {
                   key={list.id}
                   className={`list-row ${isActive ? 'active' : ''} ${isFocused ? 'focused' : ''}`}
                 >
-                  <button
-                    type="button"
-                    className="list-row-main"
-                    onClick={() => setSelectedListId(list.id)}
-                  >
-                    <strong>{list.name}</strong>
-                    <small>
-                      {list.total} sets · {list.enriched} enrichis
-                      {isActive ? ' · active' : ''}
-                    </small>
-                  </button>
+                  {renamingId === list.id ? (
+                    <form
+                      className="rename-form"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void renameList(list.id)
+                      }}
+                    >
+                      <input
+                        value={renameValue}
+                        onChange={(event) => setRenameValue(event.target.value)}
+                        aria-label="Nouveau nom"
+                        autoFocus
+                      />
+                      <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+                        OK
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setRenamingId(null)}
+                      >
+                        Annuler
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      className="list-row-main"
+                      onClick={() => setSelectedListId(list.id)}
+                    >
+                      <strong>{prettyName(list.name)}</strong>
+                      <small>
+                        {list.total} sets · {list.enriched} scannés
+                        {isActive ? ' · active' : ''}
+                      </small>
+                    </button>
+                  )}
                   <div className="list-row-actions">
                     <button
                       type="button"
@@ -577,6 +630,17 @@ export default function App() {
                       onClick={() => void selectList(list.id)}
                     >
                       Sélectionner
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={busy}
+                      onClick={() => {
+                        setRenamingId(list.id)
+                        setRenameValue(prettyName(list.name))
+                      }}
+                    >
+                      Renommer
                     </button>
                     <button
                       type="button"
@@ -612,7 +676,7 @@ export default function App() {
           />
 
           <div className="create-box">
-              <h3>Nouvelle liste (grande liste Excel)</h3>
+            <h3>Nouvelle liste</h3>
             <div className="row">
               <div className="field">
                 <label htmlFor="listName">Nom (ex. Film, Série, Jeux…)</label>
@@ -676,35 +740,94 @@ export default function App() {
       )}
 
       {screen === 'home' && !listsOpen && (
-        <section className="home-modes">
-          <button
-            type="button"
-            className="big-mode guess"
-            disabled={busy}
-            onClick={() => void openGuess()}
-          >
-            <span className="big-mode-kicker">Mission 01</span>
-            <span className="big-mode-title">Guess aléatoire</span>
-            <span className="big-mode-desc">
-              Indices holographiques, élimine les suspects, trouve le set.
-            </span>
-          </button>
-          <button
-            type="button"
-            className="big-mode wheel"
-            disabled={busy}
-            onClick={() => void openWheel()}
-          >
-            <span className="big-mode-kicker">Mission 02</span>
-            <span className="big-mode-title">Roue des sets</span>
-            <span className="big-mode-desc">
-              Fais tourner la roue : trois sets révélés avec aperçu et stats.
-            </span>
-          </button>
-          {message && !listsOpen && (
-            <div className={`message ${messageOk ? 'ok' : ''}`}>{message}</div>
+        <main className="stage">
+          <div className="stage-top">
+          <section className="hero">
+            <p className="eyebrow">Collection · deviner · tirer au sort</p>
+            <h1 className="hero-title">
+              Quel set
+              <br />
+              est-ce ?
+            </h1>
+            <p className="hero-lead">
+              Tes listes deviennent un jeu. Quatre photos, trois indices, une
+              roue. Le PDF catalogue est dans le menu.
+            </p>
+            <dl className="stats">
+              <div>
+                <dt>Listes</dt>
+                <dd>{lists.length}</dd>
+              </div>
+              <div>
+                <dt>Sets</dt>
+                <dd>{setCount}</dd>
+              </div>
+              <div>
+                <dt>Liste active</dt>
+                <dd>{active ? prettyName(active.name) : '—'}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="home-modes">
+            <button
+              type="button"
+              className="big-mode mode-guess"
+              disabled={busy}
+              onClick={() => void openGuess()}
+            >
+              <span className="big-mode-kicker">01 — Guess</span>
+              <span className="big-mode-title">Quatre suspects.</span>
+              <span className="big-mode-desc">
+                Année, pièces, figurines. Élimine les photos, puis valide le set.
+              </span>
+            </button>
+            <button
+              type="button"
+              className="big-mode mode-wheel"
+              disabled={busy}
+              onClick={() => void openWheel()}
+            >
+              <span className="big-mode-kicker">02 — Roue</span>
+              <span className="big-mode-title">Laisse tourner.</span>
+              <span className="big-mode-desc">
+                La roue tire trois sets de la liste active, avec photo et stats.
+              </span>
+            </button>
+          </section>
+          </div>
+
+          {showcase.length > 0 && (
+            <div className="rail" aria-hidden="true">
+              {showcase.map((set) => (
+                <figure className="polaroid" key={set.set_num}>
+                  <img src={set.set_img_url || ''} alt="" />
+                  <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
+                </figure>
+              ))}
+            </div>
           )}
-        </section>
+
+          <section className="steps">
+            <article>
+              <span>01</span>
+              <h3>Importe</h3>
+              <p>Wishlist, saga, ou export Rebrickable. Le menu ouvre les archives.</p>
+            </article>
+            <article>
+              <span>02</span>
+              <h3>Ça se remplit</h3>
+              <p>Nom, photo, année et nombre de pièces arrivent depuis le catalogue.</p>
+            </article>
+            <article>
+              <span>03</span>
+              <h3>Joue ou imprime</h3>
+              <p>Guess, roue, ou un PDF trié du plus gros set au plus petit.</p>
+            </article>
+          </section>
+
+          {message && <div className={`message ${messageOk ? 'ok' : ''}`}>{message}</div>}
+        </main>
       )}
 
       {screen === 'guess' && guessRound && (
@@ -811,7 +934,7 @@ export default function App() {
             <aside className="bonus-panel">
               <h3>Bonus</h3>
               <p className="muted">
-                Crédits : <strong style={{ color: 'var(--sw-yellow)' }}>{bonusCredits}</strong>
+                Crédits : <strong>{bonusCredits}</strong>
               </p>
               <div className="bonus-actions">
                 <button
