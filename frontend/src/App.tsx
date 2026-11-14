@@ -10,7 +10,8 @@ import {
   type WheelRound,
 } from './api'
 import { SetWheel } from './SetWheel'
-import { HomeScenes } from './Scenes'
+import { WorldCast, WorldNav, WorldSky } from './Worldscapes'
+import { HOME_CHAPTERS, SCREEN_WORLD, WORLDS, type WorldId } from './worlds'
 
 type Screen = 'home' | 'guess' | 'wheel'
 
@@ -192,8 +193,10 @@ export default function App() {
   const [showcase, setShowcase] = useState<ArchiveSet[]>([])
   const [renamingId, setRenamingId] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [dusk, setDusk] = useState(0)
+  const [world, setWorld] = useState<WorldId>('tatooine')
   const enrichBoot = useRef(false)
+  const chapterRefs = useRef<Partial<Record<WorldId, HTMLElement | null>>>({})
+  const navLock = useRef(false)
   const heroRowRef = useRef<HTMLDivElement>(null)
   const brandRef = useRef<HTMLButtonElement>(null)
 
@@ -239,14 +242,44 @@ export default function App() {
   }, [screen, active?.id, active?.enriched])
 
   useEffect(() => {
-    function onScroll() {
-      // Passe au crépuscule assez vite pour que le bas de page soit déjà nuit.
-      setDusk(Math.min(1, window.scrollY / 420))
+    if (listsOpen) {
+      setWorld(SCREEN_WORLD.lists)
+      return
     }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [screen, listsOpen])
+    if (screen === 'guess') {
+      setWorld(SCREEN_WORLD.guess)
+      return
+    }
+    if (screen === 'wheel') {
+      setWorld(SCREEN_WORLD.wheel)
+      return
+    }
+
+    const nodes = HOME_CHAPTERS.map((chapter) => chapterRefs.current[chapter.id]).filter(
+      (node): node is HTMLElement => !!node,
+    )
+    if (!nodes.length) {
+      setWorld('tatooine')
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) =>
+              a.boundingClientRect.top - b.boundingClientRect.top ||
+              b.intersectionRatio - a.intersectionRatio,
+          )[0]
+        const id = visible?.target.getAttribute('data-world') as WorldId | null
+        if (id && WORLDS[id]) setWorld(id)
+      },
+      { root: null, threshold: [0.2, 0.45, 0.65], rootMargin: '-12% 0px -42% 0px' },
+    )
+    nodes.forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [screen, listsOpen, showcase.length])
 
   const refreshLists = useCallback(async () => {
     let data = await api.lists()
@@ -562,21 +595,26 @@ export default function App() {
   }
 
   const setCount = lists.reduce((total, list) => total + list.total, 0)
+  const worldMeta = WORLDS[world]
+  const surface = listsOpen ? 'lists' : screen
+
+  function jumpToWorld(id: WorldId) {
+    const node = chapterRefs.current[id]
+    node?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setWorld(id)
+  }
 
   return (
     <div
-      className={`app ${listsOpen || screen !== 'home' ? 'app-panel' : 'app-home'}`}
-      style={{ ['--dusk' as string]: dusk }}
+      className={`app app-${surface} world-${world} ink-${worldMeta.ink} ${
+        listsOpen || screen !== 'home' ? 'app-panel' : 'app-home'
+      }`}
     >
-      <div className="sky" aria-hidden="true">
-        <div className="sky-sand" />
-        <div className="sky-dusk" />
-        <div className="sky-night" />
-        <div className="twin-sun twin-sun-a" />
-        <div className="twin-sun twin-sun-b" />
-        <div className="starfield" />
-      </div>
-      {screen === 'home' && !listsOpen && <HomeScenes />}
+      <WorldSky world={world} />
+      <WorldCast world={world} />
+      {screen === 'home' && !listsOpen && (
+        <WorldNav active={world} onJump={jumpToWorld} />
+      )}
       <header className="top-hero">
         <div className={`top-hero-row burger-${burgerSide}`} ref={heroRowRef}>
           <button
@@ -610,7 +648,7 @@ export default function App() {
         <section className="panel lists-panel">
           <div className="topbar">
             <div>
-              <p className="eyebrow">Archives</p>
+              <p className="eyebrow">Coruscant · Archives</p>
               <h2>Tes listes</h2>
               <p className="lead">
                 Un Excel suffit : numéro de set, quantité, version. La quantité
@@ -795,104 +833,289 @@ export default function App() {
 
       {screen === 'home' && !listsOpen && (
         <main className="stage">
-          <div className="stage-top">
-          <section className="hero">
-            <p className="eyebrow">Transmission · archives · mission</p>
-            <h1 className="hero-title">
-              Quel set
-              <br />
-              est-ce ?
-            </h1>
-            <p className="hero-lead">
-              Charge une liste, lance une mission. Quatre suspects, trois
-              indices, une roue. Le catalogue PDF est dans le menu.
-            </p>
-            <dl className="stats">
-              <div>
-                <dt>Listes</dt>
-                <dd>{lists.length}</dd>
-              </div>
-              <div>
-                <dt>Sets</dt>
-                <dd>{setCount}</dd>
-              </div>
-              <div>
-                <dt>Liste active</dt>
-                <dd>{active ? prettyName(active.name) : '—'}</dd>
-              </div>
-            </dl>
+          <p className="world-chip">
+            <span>{worldMeta.name}</span>
+            {worldMeta.vibe}
+          </p>
+
+          <section
+            className="chapter"
+            data-world="tatooine"
+            ref={(node) => {
+              chapterRefs.current.tatooine = node
+            }}
+          >
+            <div className="stage-top">
+              <section className="hero">
+                <p className="eyebrow">Transmission · {HOME_CHAPTERS[0].title}</p>
+                <h1 className="hero-title">
+                  Quel set
+                  <br />
+                  est-ce ?
+                </h1>
+                <p className="hero-lead">
+                  Voyage entre les mondes. Charge une liste, lance une mission.
+                  Quatre suspects, trois indices, une roue.
+                </p>
+                <dl className="stats">
+                  <div>
+                    <dt>Listes</dt>
+                    <dd>{lists.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Sets</dt>
+                    <dd>{setCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Liste active</dt>
+                    <dd>{active ? prettyName(active.name) : '—'}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section className="home-modes">
+                <button
+                  type="button"
+                  className="mission mission-guess"
+                  disabled={busy}
+                  onClick={() => void openGuess()}
+                >
+                  <span className="mission-studs" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span className="mission-kicker">Mustafar · 01</span>
+                  <span className="mission-title">Guess</span>
+                  <span className="mission-desc">
+                    Indices, éliminations, un seul set. Trouve-le avant de
+                    valider.
+                  </span>
+                  <span className="mission-stamp">SCAN</span>
+                </button>
+                <button
+                  type="button"
+                  className="mission mission-wheel"
+                  disabled={busy}
+                  onClick={() => void openWheel()}
+                >
+                  <span className="mission-ring" aria-hidden="true" />
+                  <span className="mission-kicker">Scarif · 02</span>
+                  <span className="mission-title">Roue</span>
+                  <span className="mission-desc">
+                    Tourne. Trois sets sortent de la liste active, photo et
+                    stats.
+                  </span>
+                </button>
+              </section>
+            </div>
           </section>
 
-          <section className="home-modes">
+          <section
+            className="chapter"
+            data-world="kashyyyk"
+            ref={(node) => {
+              chapterRefs.current.kashyyyk = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Kashyyyk</p>
+              <h2>{HOME_CHAPTERS[1].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[1].lead}</p>
+            </header>
+            {showcase.length > 0 ? (
+              <div className="rail" aria-label="Aperçu de la liste active">
+                {showcase.map((set) => (
+                  <figure className="polaroid" key={set.set_num}>
+                    <div className="polaroid-frame">
+                      <SetImage
+                        src={set.set_img_url}
+                        alt={prettyName(set.name || set.set_num)}
+                        label={set.set_num.replace(/-\d+$/, '')}
+                      />
+                    </div>
+                    <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            ) : (
+              <p className="note">Importe une liste : les photos pousseront ici.</p>
+            )}
+          </section>
+
+          <section
+            className="chapter"
+            data-world="kamino"
+            ref={(node) => {
+              chapterRefs.current.kamino = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Kamino</p>
+              <h2>{HOME_CHAPTERS[2].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[2].lead}</p>
+            </header>
+            <div className="platform-steps">
+              <article>
+                <span>01</span>
+                <h3>Importe</h3>
+                <p>Excel, wishlist, Rebrickable. Le menu ouvre Coruscant.</p>
+              </article>
+              <article>
+                <span>02</span>
+                <h3>Scan</h3>
+                <p>Noms, photos, années et pièces : la pluie de données.</p>
+              </article>
+              <article>
+                <span>03</span>
+                <h3>Mission</h3>
+                <p>Guess sur Mustafar, roue sur Scarif, PDF catalogue.</p>
+              </article>
+            </div>
+          </section>
+
+          <section
+            className="chapter"
+            data-world="hoth"
+            ref={(node) => {
+              chapterRefs.current.hoth = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Hoth</p>
+              <h2>{HOME_CHAPTERS[3].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[3].lead}</p>
+            </header>
+            <div className="ice-card">
+              <strong>Parade image manquante</strong>
+              <p>
+                Si Rebrickable n’a pas la photo, une plaque froide affiche le
+                numéro du set. Les fonds blancs fondent dans le cadre.
+              </p>
+            </div>
+          </section>
+
+          <section
+            className="chapter"
+            data-world="scarif"
+            ref={(node) => {
+              chapterRefs.current.scarif = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Scarif</p>
+              <h2>{HOME_CHAPTERS[4].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[4].lead}</p>
+            </header>
             <button
               type="button"
-              className="mission mission-guess"
-              disabled={busy}
-              onClick={() => void openGuess()}
-            >
-              <span className="mission-studs" aria-hidden="true">
-                <i /><i /><i /><i />
-              </span>
-              <span className="mission-kicker">Mission 01</span>
-              <span className="mission-title">Guess</span>
-              <span className="mission-desc">
-                Indices, éliminations, un seul set. Trouve-le avant de valider.
-              </span>
-              <span className="mission-stamp">SCAN</span>
-            </button>
-            <button
-              type="button"
-              className="mission mission-wheel"
+              className="mission mission-wheel mission-inline"
               disabled={busy}
               onClick={() => void openWheel()}
             >
-              <span className="mission-ring" aria-hidden="true" />
-              <span className="mission-kicker">Mission 02</span>
-              <span className="mission-title">Roue</span>
-              <span className="mission-desc">
-                Tourne. Trois sets sortent de la liste active, photo et stats.
-              </span>
+              <span className="mission-kicker">Lancer la roue</span>
+              <span className="mission-title">Scarif spin</span>
+              <span className="mission-desc">Trois sets, soleil et lagon.</span>
             </button>
           </section>
-          </div>
 
-          {showcase.length > 0 && (
-            <div className="rail" aria-label="Aperçu de la liste active">
-              {showcase.map((set) => (
-                <figure className="polaroid" key={set.set_num}>
-                  <div className="polaroid-frame">
-                    <SetImage
-                      src={set.set_img_url}
-                      alt={prettyName(set.name || set.set_num)}
-                      label={set.set_num.replace(/-\d+$/, '')}
-                    />
-                  </div>
-                  <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
-                </figure>
-              ))}
+          <section
+            className="chapter"
+            data-world="endor"
+            ref={(node) => {
+              chapterRefs.current.endor = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Endor</p>
+              <h2>{HOME_CHAPTERS[5].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[5].lead}</p>
+            </header>
+            <div className="steps">
+              <article>
+                <span>01</span>
+                <h3>Menu</h3>
+                <p>Listes, rename, PDF, Excel.</p>
+              </article>
+              <article>
+                <span>02</span>
+                <h3>Jouer</h3>
+                <p>Guess ou roue selon l’humeur.</p>
+              </article>
+              <article>
+                <span>03</span>
+                <h3>Garder</h3>
+                <p>Tes archives restent dans ce navigateur.</p>
+              </article>
             </div>
-          )}
-
-          <section className="horizon" aria-hidden="true">
-            <p>Les soleils baissent. Les archives s’allument.</p>
           </section>
 
-          <section className="steps">
-            <article>
-              <span>01</span>
-              <h3>Importe</h3>
-              <p>Wishlist, saga, export Rebrickable. Le menu ouvre les archives.</p>
-            </article>
-            <article>
-              <span>02</span>
-              <h3>Scan</h3>
-              <p>Noms, photos, années et pièces se branchent sur le catalogue.</p>
-            </article>
-            <article>
-              <span>03</span>
-              <h3>Mission</h3>
-              <p>Guess, roue, ou un PDF du plus gros set au plus petit.</p>
-            </article>
+          <section
+            className="chapter"
+            data-world="geonosis"
+            ref={(node) => {
+              chapterRefs.current.geonosis = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Geonosis</p>
+              <h2>{HOME_CHAPTERS[6].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[6].lead}</p>
+            </header>
+            <button
+              type="button"
+              className="mission mission-guess mission-inline"
+              disabled={busy}
+              onClick={() => void openGuess()}
+            >
+              <span className="mission-kicker">Entrer dans l’arène</span>
+              <span className="mission-title">Guess</span>
+              <span className="mission-desc">Quatre suspects. Un seul vrai.</span>
+            </button>
+          </section>
+
+          <section
+            className="chapter"
+            data-world="mustafar"
+            ref={(node) => {
+              chapterRefs.current.mustafar = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Mustafar</p>
+              <h2>{HOME_CHAPTERS[7].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[7].lead}</p>
+            </header>
+            <p className="ember-note">
+              Les bonus coûtent cher. La lave ne pardonne pas un mauvais guess.
+            </p>
+          </section>
+
+          <section
+            className="chapter chapter-last"
+            data-world="coruscant"
+            ref={(node) => {
+              chapterRefs.current.coruscant = node
+            }}
+          >
+            <header className="chapter-head">
+              <p className="eyebrow">Coruscant</p>
+              <h2>{HOME_CHAPTERS[8].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[8].lead}</p>
+            </header>
+            <div className="city-cta">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setListsOpen(true)}
+              >
+                Ouvrir les archives
+              </button>
+              <p className="muted">
+                Tours, néons, listes. Le burger reste ton portail.
+              </p>
+            </div>
           </section>
 
           {message && <div className={`message ${messageOk ? 'ok' : ''}`}>{message}</div>}
@@ -903,6 +1126,7 @@ export default function App() {
         <section className="panel">
           <div className="topbar">
             <div>
+              <p className="eyebrow">Mustafar</p>
               <h2>Guess aléatoire</h2>
               <p className="muted" style={{ margin: 0 }}>
                 Clique une case pour l’éliminer · ✓ pour valider ton guess
@@ -1106,6 +1330,7 @@ export default function App() {
         <section className="panel">
           <div className="topbar">
             <div>
+              <p className="eyebrow">Scarif</p>
               <h2>Roue des sets</h2>
               <p className="muted" style={{ margin: 0 }}>
                 Tourne… puis découvre 3 sets de ta liste.
