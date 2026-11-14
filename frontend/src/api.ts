@@ -92,6 +92,37 @@ export type WheelRound = {
   sets: SetSummary[]
 }
 
+export type ExploreSet = SetSummary & {
+  theme_id?: number | null
+  designer?: string | null
+}
+
+export type UniversePack = {
+  id: string
+  name: string
+  total: number
+  sets: ExploreSet[]
+}
+
+export type MinifigRound = {
+  mode: 'minifig'
+  answer_fig_num: string
+  image: string | null
+  choices: Array<{ fig_num: string; name: string }>
+}
+
+export type MinifigResult = {
+  correct: boolean
+  answer: {
+    fig_num: string
+    name: string
+    num_parts?: number
+    fig_img_url?: string | null
+    fig_url?: string | null
+  }
+  guess_fig_num: string
+}
+
 const API_KEY_STORAGE = 'lego_guessr_api_key'
 const DEVICE_KEY = 'lego_guessr_device'
 const ARCHIVE_KEY = 'lego_guessr_archive'
@@ -278,4 +309,18 @@ export const api = {
       body: JSON.stringify({ answer_set_num, guess_set_num }),
     }),
   startWheel: () => request<WheelRound>('/api/game/wheel', { method: 'POST' }),
+  startMinifig: () =>
+    request<MinifigRound>('/api/game/minifig', { method: 'POST' }),
+  checkMinifig: (answer_fig_num: string, guess_fig_num: string) =>
+    request<MinifigResult>('/api/game/minifig/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer_fig_num, guess_fig_num }),
+    }),
+  exploreUniverses: (limit = 8) =>
+    request<{ universes: UniversePack[] }>(`/api/explore/universes?limit=${limit}`),
+  exploreLatest: (limit = 12) =>
+    request<{ sets: ExploreSet[] }>(`/api/explore/latest?limit=${limit}`),
+  exploreMocs: (limit = 8) =>
+    request<{ mocs: ExploreSet[] }>(`/api/explore/mocs?limit=${limit}`, {}, true),
 }

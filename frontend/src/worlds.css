@@ -318,13 +318,29 @@
 }
 
 .chapter {
-  min-height: 72vh;
+  min-height: 70vh;
   padding: 1.5rem 0 2.5rem;
   scroll-margin-top: 5rem;
 }
 
-.chapter-last {
-  min-height: 60vh;
+.chapter-long {
+  min-height: 115vh;
+  padding: 2.2rem 0 4rem;
+}
+
+.chapter-night {
+  min-height: 120vh;
+}
+
+.chapter-footer {
+  min-height: 48vh;
+  padding: 3rem 0 5rem;
+  border-top: 1px solid color-mix(in srgb, #ff6a2a 35%, transparent);
+  background: linear-gradient(180deg, transparent, rgba(40, 8, 4, 0.32));
+}
+
+.chapter-block {
+  margin-top: 3.2rem;
 }
 
 .chapter-head {

@@ -15,7 +15,14 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 import db
-from catalog import lookup_set, load_catalog
+from catalog import (
+    list_latest_sets,
+    list_recent_mocs,
+    list_universes,
+    load_catalog,
+    lookup_set,
+    pick_minifig_round,
+)
 from game import make_clues, pick_choices, public_set, weighted_choices
 from nobg import has_transparent, is_skipped, local_media_url, process_set_image
 from rebrickable import RebrickableClient, parse_sets_file
@@ -223,6 +230,11 @@ def apply_nobg_batch(list_id: int, batch_size: int = 8) -> dict[str, Any]:
 class GuessBody(BaseModel):
     answer_set_num: str
     guess_set_num: str
+
+
+class MinifigGuessBody(BaseModel):
+    answer_fig_num: str
+    guess_fig_num: str
 
 
 class CreateListBody(BaseModel):
@@ -567,6 +579,52 @@ def export_list_pdf(list_id: int) -> Response:
         media_type="application/pdf",
         headers={"Content-Disposition": content_disposition(filename)},
     )
+
+
+@app.get("/api/explore/universes")
+def explore_universes(limit: int = 8) -> dict[str, Any]:
+    return {"universes": list_universes(limit_per=max(4, min(limit, 16)))}
+
+
+@app.get("/api/explore/latest")
+def explore_latest(limit: int = 12) -> dict[str, Any]:
+    return {"sets": list_latest_sets(limit=max(4, min(limit, 24)))}
+
+
+@app.get("/api/explore/mocs")
+def explore_mocs(
+    limit: int = 8,
+    x_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    key = (x_api_key or "").strip() or os.getenv("REBRICKABLE_API_KEY", "").strip()
+    return {"mocs": list_recent_mocs(limit=max(4, min(limit, 16)), api_key=key or None)}
+
+
+@app.post("/api/game/minifig")
+def start_minifig_mode() -> dict[str, Any]:
+    round_data = pick_minifig_round(count=4)
+    if not round_data:
+        raise HTTPException(
+            status_code=503,
+            detail="Catalogue minifigs indisponible. Réessaie dans un instant.",
+        )
+    return round_data
+
+
+@app.post("/api/game/minifig/check")
+def check_minifig(body: MinifigGuessBody) -> dict[str, Any]:
+    from catalog import load_minifigs
+
+    figs = {fig["fig_num"]: fig for fig in load_minifigs()}
+    answer = figs.get(body.answer_fig_num)
+    if not answer:
+        raise HTTPException(status_code=404, detail="Figurine introuvable.")
+    correct = body.guess_fig_num == body.answer_fig_num
+    return {
+        "correct": correct,
+        "answer": answer,
+        "guess_fig_num": body.guess_fig_num,
+    }
 
 
 @app.post("/api/game/guess")

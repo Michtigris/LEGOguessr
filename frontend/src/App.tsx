@@ -1,19 +1,23 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api,
   loadArchive,
   saveArchive,
   type ArchiveSet,
+  type ExploreSet,
   type GuessResult,
   type GuessRound,
+  type MinifigResult,
+  type MinifigRound,
   type SetList,
+  type UniversePack,
   type WheelRound,
 } from './api'
 import { SetWheel } from './SetWheel'
 import { WorldCast, WorldNav, WorldSky } from './Worldscapes'
 import { HOME_CHAPTERS, SCREEN_WORLD, WORLDS, type WorldId } from './worlds'
 
-type Screen = 'home' | 'guess' | 'wheel'
+type Screen = 'home' | 'guess' | 'wheel' | 'minifig'
 
 function prettyName(name: string) {
   return name.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
@@ -24,32 +28,39 @@ function formatRange([low, high]: [number, number]) {
 }
 
 function AppMenu({
-  lists,
-  side,
-  busy,
+  open,
   listsOpen,
   hasActive,
+  busy,
+  onClose,
+  onHome,
   onToggleLists,
-  onExport,
+  onExplore,
+  onGuess,
+  onMinifig,
+  onWheel,
 }: {
-  lists: SetList[]
-  side: 'left' | 'right'
-  busy: boolean
+  open: boolean
   listsOpen: boolean
   hasActive: boolean
+  busy: boolean
+  onClose: () => void
+  onHome: () => void
   onToggleLists: () => void
-  onExport: (id: number) => void
+  onExplore: () => void
+  onGuess: () => void
+  onMinifig: () => void
+  onWheel: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     function onPointer(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+      if (!rootRef.current?.contains(event.target as Node)) onClose()
     }
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') onClose()
     }
     document.addEventListener('mousedown', onPointer)
     document.addEventListener('keydown', onKey)
@@ -57,62 +68,37 @@ function AppMenu({
       document.removeEventListener('mousedown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, onClose])
+
+  if (!open) return null
 
   return (
-    <div className={`export-menu side-${side}`} ref={rootRef}>
-      <button
-        type="button"
-        className={`list-icon-btn ${open || listsOpen ? 'active' : ''}`}
-        aria-label="Menu"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Menu"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
-        </svg>
-        {hasActive && <span className="list-dot" />}
+    <div className="site-menu" ref={rootRef} role="menu">
+      <button type="button" role="menuitem" onClick={onHome}>
+        <strong>Accueil</strong>
+        <small>voyage Tatooine → nuit</small>
       </button>
-      {open && (
-        <div className="export-popover" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false)
-              onToggleLists()
-            }}
-          >
-            <strong>{listsOpen ? 'Fermer les listes' : 'Listes de sets'}</strong>
-            <small>{listsOpen ? 'fermer' : 'gérer'}</small>
-          </button>
-          <p className="export-popover-title">Exporter en PDF</p>
-          {!lists.length ? (
-            <p className="export-empty">Aucune liste pour l’instant.</p>
-          ) : (
-            <ul>
-              {lists.map((list) => (
-                <li key={list.id}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={busy || list.total === 0}
-                    onClick={() => {
-                      setOpen(false)
-                      onExport(list.id)
-                    }}
-                  >
-                    <strong>{prettyName(list.name)}</strong>
-                    <small>{list.total ? `${list.total} sets` : 'vide'}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <button type="button" role="menuitem" onClick={onToggleLists}>
+        <strong>{listsOpen ? 'Fermer les listes' : 'Mes listes'}</strong>
+        <small>{hasActive ? 'active prête' : 'importer / gérer'}</small>
+      </button>
+      <button type="button" role="menuitem" onClick={onExplore}>
+        <strong>Explorer</strong>
+        <small>SW · LOTR · Hobbit · sorties · MOCs</small>
+      </button>
+      <p className="site-menu-label">Mini-jeux</p>
+      <button type="button" role="menuitem" disabled={busy} onClick={onGuess}>
+        <strong>Guess sets</strong>
+        <small>Mustafar · ta liste</small>
+      </button>
+      <button type="button" role="menuitem" disabled={busy} onClick={onMinifig}>
+        <strong>Guess minifigs</strong>
+        <small>catalogue Rebrickable</small>
+      </button>
+      <button type="button" role="menuitem" disabled={busy} onClick={onWheel}>
+        <strong>Roue</strong>
+        <small>Hoth · ta liste</small>
+      </button>
     </div>
   )
 }
@@ -138,6 +124,7 @@ function SetImage({
       src={src}
       alt={alt}
       loading="lazy"
+      referrerPolicy="no-referrer"
       className="set-img"
       onError={() => setBroken(true)}
     />
@@ -189,38 +176,20 @@ export default function App() {
   const [wheelRound, setWheelRound] = useState<WheelRound | null>(null)
   const [wheelSpinning, setWheelSpinning] = useState(false)
   const [wheelRevealed, setWheelRevealed] = useState(false)
-  const [burgerSide, setBurgerSide] = useState<'left' | 'right'>('right')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [showcase, setShowcase] = useState<ArchiveSet[]>([])
+  const [universes, setUniverses] = useState<UniversePack[]>([])
+  const [latestSets, setLatestSets] = useState<ExploreSet[]>([])
+  const [mocs, setMocs] = useState<ExploreSet[]>([])
+  const [exploreReady, setExploreReady] = useState(false)
+  const [minifigRound, setMinifigRound] = useState<MinifigRound | null>(null)
+  const [minifigResult, setMinifigResult] = useState<MinifigResult | null>(null)
   const [renamingId, setRenamingId] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [world, setWorld] = useState<WorldId>('tatooine')
   const enrichBoot = useRef(false)
   const chapterRefs = useRef<Partial<Record<WorldId, HTMLElement | null>>>({})
   const navLock = useRef(false)
-  const heroRowRef = useRef<HTMLDivElement>(null)
-  const brandRef = useRef<HTMLButtonElement>(null)
-
-  useLayoutEffect(() => {
-    const row = heroRowRef.current
-    const brand = brandRef.current
-    if (!row || !brand) return
-
-    function placeBurger() {
-      if (!row || !brand) return
-      const range = document.createRange()
-      range.selectNodeContents(brand)
-      const textWidth = range.getBoundingClientRect().width
-      const rowGap = parseFloat(getComputedStyle(row).columnGap || '16') || 16
-      const button = 52
-      const needed = textWidth + rowGap + button
-      setBurgerSide(needed <= row.clientWidth + 1 ? 'right' : 'left')
-    }
-
-    placeBurger()
-    const observer = new ResizeObserver(placeBurger)
-    observer.observe(row)
-    return () => observer.disconnect()
-  }, [])
 
   useEffect(() => {
     if (screen !== 'home') return
@@ -231,7 +200,7 @@ export default function App() {
         if (cancel) return
         const list = snap.lists.find((item) => item.active) ?? snap.lists[0]
         const photos = (list?.sets ?? []).filter((set) => set.set_img_url)
-        setShowcase(photos.slice(0, 7))
+        setShowcase(photos.slice(0, 8))
       })
       .catch(() => {
         if (!cancel) setShowcase([])
@@ -240,6 +209,34 @@ export default function App() {
       cancel = true
     }
   }, [screen, active?.id, active?.enriched])
+
+  useEffect(() => {
+    let cancel = false
+    void (async () => {
+      try {
+        const uni = await api.exploreUniverses(8)
+        if (!cancel) setUniverses(uni.universes)
+      } catch {
+        /* catalogue optionnel */
+      }
+      try {
+        const latest = await api.exploreLatest(12)
+        if (!cancel) setLatestSets(latest.sets)
+      } catch {
+        /* catalogue optionnel */
+      }
+      try {
+        const mocPack = await api.exploreMocs(8)
+        if (!cancel) setMocs(mocPack.mocs)
+      } catch {
+        /* clé API absente → fallback serveur ou vide */
+      }
+      if (!cancel) setExploreReady(true)
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [])
 
   useEffect(() => {
     if (listsOpen) {
@@ -252,6 +249,10 @@ export default function App() {
     }
     if (screen === 'wheel') {
       setWorld(SCREEN_WORLD.wheel)
+      return
+    }
+    if (screen === 'minifig') {
+      setWorld(SCREEN_WORLD.minifig)
       return
     }
 
@@ -270,17 +271,17 @@ export default function App() {
           .filter((entry) => entry.isIntersecting)
           .sort(
             (a, b) =>
-              a.boundingClientRect.top - b.boundingClientRect.top ||
-              b.intersectionRatio - a.intersectionRatio,
+              b.intersectionRatio - a.intersectionRatio ||
+              a.boundingClientRect.top - b.boundingClientRect.top,
           )[0]
         const id = visible?.target.getAttribute('data-world') as WorldId | null
         if (id && WORLDS[id]) setWorld(id)
       },
-      { root: null, threshold: [0.2, 0.45, 0.65], rootMargin: '-12% 0px -42% 0px' },
+      { root: null, threshold: [0.15, 0.35, 0.55, 0.7], rootMargin: '-8% 0px -28% 0px' },
     )
     nodes.forEach((node) => observer.observe(node))
     return () => observer.disconnect()
-  }, [screen, listsOpen, showcase.length])
+  }, [screen, listsOpen, exploreReady, showcase.length])
 
   const refreshLists = useCallback(async () => {
     let data = await api.lists()
@@ -595,18 +596,54 @@ export default function App() {
     }
   }
 
+  async function openMinifig() {
+    setBusy(true)
+    setMinifigResult(null)
+    try {
+      const round = await api.startMinifig()
+      setMinifigRound(round)
+      setScreen('minifig')
+      setListsOpen(false)
+      setMenuOpen(false)
+    } catch (err) {
+      flash(false, err instanceof Error ? err.message : 'Impossible de lancer le guess minifig')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitMinifig(guess: string) {
+    if (!minifigRound || minifigResult) return
+    setBusy(true)
+    try {
+      setMinifigResult(await api.checkMinifig(minifigRound.answer_fig_num, guess))
+    } catch (err) {
+      flash(false, err instanceof Error ? err.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const setCount = lists.reduce((total, list) => total + list.total, 0)
   const worldMeta = WORLDS[world]
   const surface = listsOpen ? 'lists' : screen
 
   function jumpToWorld(id: WorldId) {
-    const node = chapterRefs.current[id]
+    setScreen('home')
+    setListsOpen(false)
+    setMenuOpen(false)
     navLock.current = true
     setWorld(id)
-    node?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     window.setTimeout(() => {
-      navLock.current = false
-    }, 900)
+      chapterRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      window.setTimeout(() => {
+        navLock.current = false
+      }, 1100)
+    }, 70)
+  }
+
+  function goHome() {
+    jumpToWorld('tatooine')
   }
 
   return (
@@ -620,29 +657,65 @@ export default function App() {
       {screen === 'home' && !listsOpen && (
         <WorldNav active={world} onJump={jumpToWorld} />
       )}
-      <header className="top-hero">
-        <div className={`top-hero-row burger-${burgerSide}`} ref={heroRowRef}>
+      <header className="site-header">
+        <button
+          type="button"
+          className="brand"
+          onClick={() => goHome()}
+        >
+          LEGO Guessr
+        </button>
+        <nav className="site-nav" aria-label="Navigation principale">
+          <button type="button" className="nav-link" onClick={() => jumpToWorld('coruscant')}>
+            Explorer
+          </button>
           <button
             type="button"
-            className="brand"
-            ref={brandRef}
+            className="nav-link"
             onClick={() => {
-              setScreen('home')
-              setListsOpen(false)
+              setListsOpen(true)
+              setMenuOpen(false)
             }}
           >
-            LEGO Guessr
+            Listes
           </button>
-          <AppMenu
-            lists={lists}
-            side={burgerSide}
-            busy={busy}
-            listsOpen={listsOpen}
-            hasActive={!!active}
-            onToggleLists={() => setListsOpen((open) => !open)}
-            onExport={(id) => void exportListPdf(id)}
-          />
-        </div>
+          <button
+            type="button"
+            className={`nav-burger ${menuOpen || listsOpen ? 'active' : ''}`}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <span />
+            <span />
+            <span />
+            {active && <i className="list-dot" />}
+          </button>
+        </nav>
+        <AppMenu
+          open={menuOpen}
+          listsOpen={listsOpen}
+          hasActive={!!active}
+          busy={busy}
+          onClose={() => setMenuOpen(false)}
+          onHome={() => goHome()}
+          onToggleLists={() => {
+            setListsOpen((open) => !open)
+            setMenuOpen(false)
+          }}
+          onExplore={() => jumpToWorld('coruscant')}
+          onGuess={() => {
+            setMenuOpen(false)
+            void openGuess()
+          }}
+          onMinifig={() => {
+            void openMinifig()
+          }}
+          onWheel={() => {
+            setMenuOpen(false)
+            void openWheel()
+          }}
+        />
       </header>
 
       {message && screen !== 'home' && !listsOpen && (
@@ -752,6 +825,15 @@ export default function App() {
                     </button>
                     <button
                       type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={busy || list.total === 0}
+                      onClick={() => void exportListPdf(list.id)}
+                      title="Créer un PDF de cette liste"
+                    >
+                      PDF
+                    </button>
+                    <button
+                      type="button"
                       className="btn btn-ghost btn-sm"
                       disabled={busy}
                       onClick={() => void deleteList(list.id)}
@@ -844,7 +926,7 @@ export default function App() {
           </p>
 
           <section
-            className="chapter"
+            className="chapter chapter-long"
             data-world="tatooine"
             ref={(node) => {
               chapterRefs.current.tatooine = node
@@ -852,15 +934,16 @@ export default function App() {
           >
             <div className="stage-top">
               <section className="hero">
-                <p className="eyebrow">Transmission · {HOME_CHAPTERS[0].title}</p>
+                <p className="eyebrow">Tatooine · {HOME_CHAPTERS[0].title}</p>
                 <h1 className="hero-title">
                   Quel set
                   <br />
                   est-ce ?
                 </h1>
                 <p className="hero-lead">
-                  Voyage entre les mondes. Charge une liste, lance une mission.
-                  Quatre suspects, trois indices, une roue.
+                  Charge ta collection, joue au Guess, tourne la roue sur Hoth,
+                  ou reconnais une minifig. Le catalogue Rebrickable alimente
+                  le reste du voyage.
                 </p>
                 <dl className="stats">
                   <div>
@@ -891,11 +974,10 @@ export default function App() {
                     <i />
                     <i />
                   </span>
-                  <span className="mission-kicker">Mustafar · 01</span>
+                  <span className="mission-kicker">Mustafar · sets</span>
                   <span className="mission-title">Guess</span>
                   <span className="mission-desc">
-                    Indices, éliminations, un seul set. Trouve-le avant de
-                    valider.
+                    Indices, éliminations, un seul set de ta liste.
                   </span>
                   <span className="mission-stamp">SCAN</span>
                 </button>
@@ -906,182 +988,166 @@ export default function App() {
                   onClick={() => void openWheel()}
                 >
                   <span className="mission-ring" aria-hidden="true" />
-                  <span className="mission-kicker">Scarif · 02</span>
+                  <span className="mission-kicker">Hoth · roue</span>
                   <span className="mission-title">Roue</span>
                   <span className="mission-desc">
-                    Tourne. Trois sets sortent de la liste active, photo et
-                    stats.
+                    Trois sets sortent de la liste active, photo et stats.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="mission mission-minifig"
+                  disabled={busy}
+                  onClick={() => void openMinifig()}
+                >
+                  <span className="mission-kicker">Geonosis · figs</span>
+                  <span className="mission-title">Minifigs</span>
+                  <span className="mission-desc">
+                    Une photo, quatre noms. Qui est cette figurine ?
                   </span>
                 </button>
               </section>
             </div>
+
+            <div className="chapter-block">
+              <header className="chapter-head">
+                <p className="eyebrow">Ta liste active</p>
+                <h2>Aperçu des sets</h2>
+                <p className="hero-lead">
+                  Importe un Excel dans Listes — les photos apparaissent ici.
+                </p>
+              </header>
+              {showcase.length > 0 ? (
+                <div className="rail" aria-label="Aperçu de la liste active">
+                  {showcase.map((set) => (
+                    <figure className="polaroid" key={set.set_num}>
+                      <div className="polaroid-frame">
+                        <SetImage
+                          src={set.set_img_url}
+                          alt={prettyName(set.name || set.set_num)}
+                          label={set.set_num.replace(/-\d+$/, '')}
+                        />
+                      </div>
+                      <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <p className="note">
+                  Aucune photo pour l’instant.{' '}
+                  <button type="button" className="text-link" onClick={() => setListsOpen(true)}>
+                    Ouvrir les listes
+                  </button>
+                </p>
+              )}
+            </div>
           </section>
 
           <section
-            className="chapter"
-            data-world="kashyyyk"
+            className="chapter chapter-long chapter-night"
+            data-world="coruscant"
             ref={(node) => {
-              chapterRefs.current.kashyyyk = node
+              chapterRefs.current.coruscant = node
             }}
           >
             <header className="chapter-head">
-              <p className="eyebrow">Kashyyyk</p>
+              <p className="eyebrow">Coruscant · nuit</p>
               <h2>{HOME_CHAPTERS[1].title}</h2>
               <p className="hero-lead">{HOME_CHAPTERS[1].lead}</p>
             </header>
-            {showcase.length > 0 ? (
-              <div className="rail" aria-label="Aperçu de la liste active">
-                {showcase.map((set) => (
-                  <figure className="polaroid" key={set.set_num}>
-                    <div className="polaroid-frame">
-                      <SetImage
-                        src={set.set_img_url}
-                        alt={prettyName(set.name || set.set_num)}
-                        label={set.set_num.replace(/-\d+$/, '')}
-                      />
+
+            <div className="explore-block">
+              <div className="explore-head">
+                <h3>Univers</h3>
+                <p>Star Wars, Seigneur des Anneaux, Hobbit — tirés du catalogue officiel.</p>
+              </div>
+              {!exploreReady && <p className="note">Chargement du catalogue…</p>}
+              <div className="universe-grid">
+                {universes.map((pack) => (
+                  <article key={pack.id} className="universe-card">
+                    <header>
+                      <strong>{pack.name}</strong>
+                      <small>{pack.total} sets connus</small>
+                    </header>
+                    <div className="universe-rail">
+                      {pack.sets.slice(0, 4).map((set) => (
+                        <a
+                          key={set.set_num}
+                          className="universe-tile"
+                          href={set.set_url || `https://rebrickable.com/sets/${set.set_num}/`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <SetImage
+                            src={set.set_img_url}
+                            alt={prettyName(set.name || set.set_num)}
+                            label={set.set_num.replace(/-\d+$/, '')}
+                          />
+                          <span>{prettyName(set.name || set.set_num)}</span>
+                        </a>
+                      ))}
                     </div>
-                    <figcaption>{prettyName(set.name || set.set_num)}</figcaption>
-                  </figure>
+                  </article>
                 ))}
               </div>
-            ) : (
-              <p className="note">Importe une liste : les photos pousseront ici.</p>
-            )}
-          </section>
+            </div>
 
-          <section
-            className="chapter"
-            data-world="kamino"
-            ref={(node) => {
-              chapterRefs.current.kamino = node
-            }}
-          >
-            <header className="chapter-head">
-              <p className="eyebrow">Kamino</p>
-              <h2>{HOME_CHAPTERS[2].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[2].lead}</p>
-            </header>
-            <div className="platform-steps">
-              <article>
-                <span>01</span>
-                <h3>Importe</h3>
-                <p>Excel, wishlist, Rebrickable. Le menu ouvre Coruscant.</p>
-              </article>
-              <article>
-                <span>02</span>
-                <h3>Scan</h3>
-                <p>Noms, photos, années et pièces : la pluie de données.</p>
-              </article>
-              <article>
-                <span>03</span>
-                <h3>Mission</h3>
-                <p>Guess sur Mustafar, roue sur Scarif, PDF catalogue.</p>
-              </article>
+            <div className="explore-block">
+              <div className="explore-head">
+                <h3>Dernières sorties</h3>
+                <p>Les sets les plus récents du dump Rebrickable.</p>
+              </div>
+              <div className="catalog-grid">
+                {latestSets.map((set) => (
+                  <a
+                    key={set.set_num}
+                    className="catalog-card"
+                    href={set.set_url || `https://rebrickable.com/sets/${set.set_num}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <SetPlate src={set.set_img_url} alt={prettyName(set.name || set.set_num)} fallback />
+                    <div className="meta">
+                      <strong>{prettyName(set.name || set.set_num)}</strong>
+                      <small>
+                        {set.year ?? '—'} · {set.num_parts ?? '?'} pcs · {set.set_num}
+                      </small>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            <div className="explore-block">
+              <div className="explore-head">
+                <h3>MOCs récents</h3>
+                <p>Sélection Rebrickable (API si clé dispo, sinon sélection éditoriale).</p>
+              </div>
+              <div className="catalog-grid">
+                {mocs.map((moc) => (
+                  <a
+                    key={moc.set_num}
+                    className="catalog-card"
+                    href={moc.set_url || `https://rebrickable.com/mocs/${moc.set_num}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <SetPlate src={moc.set_img_url} alt={prettyName(moc.name || moc.set_num)} fallback />
+                    <div className="meta">
+                      <strong>{prettyName(moc.name || moc.set_num)}</strong>
+                      <small>
+                        {moc.year ?? 'MOC'}
+                        {moc.designer ? ` · ${moc.designer}` : ''}
+                      </small>
+                    </div>
+                  </a>
+                ))}
+              </div>
             </div>
           </section>
 
-          <section
-            className="chapter"
-            data-world="hoth"
-            ref={(node) => {
-              chapterRefs.current.hoth = node
-            }}
-          >
-            <header className="chapter-head">
-              <p className="eyebrow">Hoth</p>
-              <h2>{HOME_CHAPTERS[3].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[3].lead}</p>
-            </header>
-            <div className="ice-card">
-              <strong>Parade image manquante</strong>
-              <p>
-                Si Rebrickable n’a pas la photo, une plaque froide affiche le
-                numéro du set. Les fonds blancs fondent dans le cadre.
-              </p>
-            </div>
-          </section>
-
-          <section
-            className="chapter"
-            data-world="scarif"
-            ref={(node) => {
-              chapterRefs.current.scarif = node
-            }}
-          >
-            <header className="chapter-head">
-              <p className="eyebrow">Scarif</p>
-              <h2>{HOME_CHAPTERS[4].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[4].lead}</p>
-            </header>
-            <button
-              type="button"
-              className="mission mission-wheel mission-inline"
-              disabled={busy}
-              onClick={() => void openWheel()}
-            >
-              <span className="mission-kicker">Lancer la roue</span>
-              <span className="mission-title">Scarif spin</span>
-              <span className="mission-desc">Trois sets, soleil et lagon.</span>
-            </button>
-          </section>
-
-          <section
-            className="chapter"
-            data-world="endor"
-            ref={(node) => {
-              chapterRefs.current.endor = node
-            }}
-          >
-            <header className="chapter-head">
-              <p className="eyebrow">Endor</p>
-              <h2>{HOME_CHAPTERS[5].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[5].lead}</p>
-            </header>
-            <div className="steps">
-              <article>
-                <span>01</span>
-                <h3>Menu</h3>
-                <p>Listes, rename, PDF, Excel.</p>
-              </article>
-              <article>
-                <span>02</span>
-                <h3>Jouer</h3>
-                <p>Guess ou roue selon l’humeur.</p>
-              </article>
-              <article>
-                <span>03</span>
-                <h3>Garder</h3>
-                <p>Tes archives restent dans ce navigateur.</p>
-              </article>
-            </div>
-          </section>
-
-          <section
-            className="chapter"
-            data-world="geonosis"
-            ref={(node) => {
-              chapterRefs.current.geonosis = node
-            }}
-          >
-            <header className="chapter-head">
-              <p className="eyebrow">Geonosis</p>
-              <h2>{HOME_CHAPTERS[6].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[6].lead}</p>
-            </header>
-            <button
-              type="button"
-              className="mission mission-guess mission-inline"
-              disabled={busy}
-              onClick={() => void openGuess()}
-            >
-              <span className="mission-kicker">Entrer dans l’arène</span>
-              <span className="mission-title">Guess</span>
-              <span className="mission-desc">Quatre suspects. Un seul vrai.</span>
-            </button>
-          </section>
-
-          <section
-            className="chapter"
+          <footer
+            className="chapter chapter-footer"
             data-world="mustafar"
             ref={(node) => {
               chapterRefs.current.mustafar = node
@@ -1089,39 +1155,24 @@ export default function App() {
           >
             <header className="chapter-head">
               <p className="eyebrow">Mustafar</p>
-              <h2>{HOME_CHAPTERS[7].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[7].lead}</p>
+              <h2>{HOME_CHAPTERS[2].title}</h2>
+              <p className="hero-lead">{HOME_CHAPTERS[2].lead}</p>
             </header>
-            <p className="ember-note">
-              Les bonus coûtent cher. La lave ne pardonne pas un mauvais guess.
-            </p>
-          </section>
-
-          <section
-            className="chapter chapter-last"
-            data-world="coruscant"
-            ref={(node) => {
-              chapterRefs.current.coruscant = node
-            }}
-          >
-            <header className="chapter-head">
-              <p className="eyebrow">Coruscant</p>
-              <h2>{HOME_CHAPTERS[8].title}</h2>
-              <p className="hero-lead">{HOME_CHAPTERS[8].lead}</p>
-            </header>
-            <div className="city-cta">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setListsOpen(true)}
-              >
-                Ouvrir les archives
+            <div className="footer-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setListsOpen(true)}>
+                Gérer mes listes
               </button>
-              <p className="muted">
-                Tours, néons, listes. Le burger reste ton portail.
-              </p>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void openMinifig()}>
+                Guess minifig
+              </button>
+              <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void openWheel()}>
+                Roue Hoth
+              </button>
             </div>
-          </section>
+            <p className="ember-note">
+              Le PDF se crée depuis chaque liste (bouton PDF), pas depuis le menu.
+            </p>
+          </footer>
 
           {message && <div className={`message ${messageOk ? 'ok' : ''}`}>{message}</div>}
         </main>
@@ -1331,11 +1382,93 @@ export default function App() {
         </section>
       )}
 
+      {screen === 'minifig' && minifigRound && (
+        <section className="panel">
+          <div className="topbar">
+            <div>
+              <p className="eyebrow">Geonosis</p>
+              <h2>Guess minifig</h2>
+              <p className="muted" style={{ margin: 0 }}>
+                Qui est cette figurine ? Quatre noms, une seule bonne réponse.
+              </p>
+            </div>
+            <button type="button" className="btn btn-ghost" onClick={() => setScreen('home')}>
+              Accueil
+            </button>
+          </div>
+
+          <div className="minifig-stage">
+            <div className="minifig-portrait">
+              <SetPlate
+                key={minifigRound.answer_fig_num}
+                src={minifigRound.image}
+                alt="Figurine mystère"
+                fallback
+                label="FIG"
+              />
+            </div>
+            <div className="minifig-choices">
+              {minifigRound.choices.map((choice) => {
+                const isGuess = minifigResult?.guess_fig_num === choice.fig_num
+                const isAnswer = minifigResult?.answer.fig_num === choice.fig_num
+                let className = 'btn btn-secondary minifig-choice'
+                if (minifigResult && isAnswer) className += ' is-correct'
+                if (minifigResult && isGuess && !minifigResult.correct) className += ' is-wrong'
+                return (
+                  <button
+                    key={choice.fig_num}
+                    type="button"
+                    className={className}
+                    disabled={busy || !!minifigResult}
+                    onClick={() => void submitMinifig(choice.fig_num)}
+                  >
+                    {prettyName(choice.name)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {minifigResult && (
+            <div className={`reveal ${minifigResult.correct ? 'win' : 'lose'}`}>
+              <SetPlate
+                src={minifigResult.answer.fig_img_url || minifigRound.image}
+                alt={minifigResult.answer.name}
+                fallback
+              />
+              <div>
+                <h3 style={{ marginTop: 0 }}>
+                  {minifigResult.correct ? 'Bien vu !' : 'Raté…'}
+                </h3>
+                <p style={{ margin: '0 0 0.4rem' }}>
+                  <strong>{prettyName(minifigResult.answer.name)}</strong>
+                </p>
+                <p className="muted" style={{ margin: 0 }}>
+                  {minifigResult.answer.fig_num}
+                  {minifigResult.answer.num_parts
+                    ? ` · ${minifigResult.answer.num_parts} pcs`
+                    : ''}
+                </p>
+                <div className="row" style={{ marginTop: '0.9rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => void openMinifig()}
+                  >
+                    Nouvelle manche
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {screen === 'wheel' && wheelRound && (
         <section className="panel">
           <div className="topbar">
             <div>
-              <p className="eyebrow">Scarif</p>
+              <p className="eyebrow">Hoth</p>
               <h2>Roue des sets</h2>
               <p className="muted" style={{ margin: 0 }}>
                 Tourne… puis découvre 3 sets de ta liste.

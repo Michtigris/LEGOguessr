@@ -74,7 +74,10 @@ export const WORLDS: Record<WorldId, WorldDef> = {
   },
 }
 
-/** Chapitres de l’accueil — voyage qui mélange les univers. */
+/**
+ * Accueil : long Tatooine → longue nuit Coruscant → footer Mustafar.
+ * Pas un monde par écran — on reste assez longtemps pour respirer.
+ */
 export const HOME_CHAPTERS: Array<{
   id: WorldId
   title: string
@@ -86,50 +89,25 @@ export const HOME_CHAPTERS: Array<{
     lead: 'Deux soleils. Une liste. Une mission.',
   },
   {
-    id: 'kashyyyk',
-    title: 'Archives dans la canopée',
-    lead: 'Tes sets s’accrochent aux branches comme des trophées.',
-  },
-  {
-    id: 'kamino',
-    title: 'Plateformes de scan',
-    lead: 'La pluie tombe. Les données montent.',
-  },
-  {
-    id: 'hoth',
-    title: 'Silence de glace',
-    lead: 'Quand une photo manque, le froid laisse une plaque nette.',
-  },
-  {
-    id: 'scarif',
-    title: 'Côte tropicale',
-    lead: 'La roue tourne comme une bouée au soleil.',
-  },
-  {
-    id: 'endor',
-    title: 'Clairière',
-    lead: 'Trois gestes : importe, scanne, joue.',
-  },
-  {
-    id: 'geonosis',
-    title: 'Poussière d’arène',
-    lead: 'Le Guess, c’est l’arène : quatre suspects, un vainqueur.',
+    id: 'coruscant',
+    title: 'Archives de la nuit',
+    lead: 'Univers, sorties, MOCs — le vrai catalogue, pas du remplissage.',
   },
   {
     id: 'mustafar',
-    title: 'Pont de lave',
-    lead: 'Tension max avant de valider.',
-  },
-  {
-    id: 'coruscant',
-    title: 'Nuit urbaine',
-    lead: 'Les archives brillent. Le menu ouvre la ville.',
+    title: 'Fin de transmission',
+    lead: 'La lave clôt le voyage. Reviens quand tu veux.',
   },
 ]
 
-export const SCREEN_WORLD: Record<'home' | 'guess' | 'wheel' | 'lists', WorldId> = {
+export const SCREEN_WORLD: Record<
+  'home' | 'guess' | 'wheel' | 'lists' | 'minifig' | 'explore',
+  WorldId
+> = {
   home: 'tatooine',
   lists: 'coruscant',
+  explore: 'coruscant',
   guess: 'mustafar',
-  wheel: 'scarif',
+  wheel: 'hoth',
+  minifig: 'geonosis',
 }
