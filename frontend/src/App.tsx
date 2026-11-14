@@ -10,6 +10,7 @@ import {
   type WheelRound,
 } from './api'
 import { SetWheel } from './SetWheel'
+import { HomeScenes } from './Scenes'
 
 type Screen = 'home' | 'guess' | 'wheel'
 
@@ -191,6 +192,7 @@ export default function App() {
   const [showcase, setShowcase] = useState<ArchiveSet[]>([])
   const [renamingId, setRenamingId] = useState<number | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [dusk, setDusk] = useState(0)
   const enrichBoot = useRef(false)
   const heroRowRef = useRef<HTMLDivElement>(null)
   const brandRef = useRef<HTMLButtonElement>(null)
@@ -235,6 +237,16 @@ export default function App() {
       cancel = true
     }
   }, [screen, active?.id, active?.enriched])
+
+  useEffect(() => {
+    function onScroll() {
+      // Passe au crépuscule assez vite pour que le bas de page soit déjà nuit.
+      setDusk(Math.min(1, window.scrollY / 420))
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [screen, listsOpen])
 
   const refreshLists = useCallback(async () => {
     let data = await api.lists()
@@ -552,8 +564,19 @@ export default function App() {
   const setCount = lists.reduce((total, list) => total + list.total, 0)
 
   return (
-    <div className="app">
-      <div className="starfield" aria-hidden="true" />
+    <div
+      className={`app ${listsOpen || screen !== 'home' ? 'app-panel' : 'app-home'}`}
+      style={{ ['--dusk' as string]: dusk }}
+    >
+      <div className="sky" aria-hidden="true">
+        <div className="sky-sand" />
+        <div className="sky-dusk" />
+        <div className="sky-night" />
+        <div className="twin-sun twin-sun-a" />
+        <div className="twin-sun twin-sun-b" />
+        <div className="starfield" />
+      </div>
+      {screen === 'home' && !listsOpen && <HomeScenes />}
       <header className="top-hero">
         <div className={`top-hero-row burger-${burgerSide}`} ref={heroRowRef}>
           <button
@@ -803,25 +826,30 @@ export default function App() {
           <section className="home-modes">
             <button
               type="button"
-              className="big-mode mode-guess"
+              className="mission mission-guess"
               disabled={busy}
               onClick={() => void openGuess()}
             >
-              <span className="big-mode-kicker">Mission 01</span>
-              <span className="big-mode-title">Guess</span>
-              <span className="big-mode-desc">
+              <span className="mission-studs" aria-hidden="true">
+                <i /><i /><i /><i />
+              </span>
+              <span className="mission-kicker">Mission 01</span>
+              <span className="mission-title">Guess</span>
+              <span className="mission-desc">
                 Indices, éliminations, un seul set. Trouve-le avant de valider.
               </span>
+              <span className="mission-stamp">SCAN</span>
             </button>
             <button
               type="button"
-              className="big-mode mode-wheel"
+              className="mission mission-wheel"
               disabled={busy}
               onClick={() => void openWheel()}
             >
-              <span className="big-mode-kicker">Mission 02</span>
-              <span className="big-mode-title">Roue</span>
-              <span className="big-mode-desc">
+              <span className="mission-ring" aria-hidden="true" />
+              <span className="mission-kicker">Mission 02</span>
+              <span className="mission-title">Roue</span>
+              <span className="mission-desc">
                 Tourne. Trois sets sortent de la liste active, photo et stats.
               </span>
             </button>
@@ -844,6 +872,10 @@ export default function App() {
               ))}
             </div>
           )}
+
+          <section className="horizon" aria-hidden="true">
+            <p>Les soleils baissent. Les archives s’allument.</p>
+          </section>
 
           <section className="steps">
             <article>
