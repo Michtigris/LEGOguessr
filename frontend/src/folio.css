@@ -1,0 +1,411 @@
+/* Accueil éditorial — rails horizontaux, typo, pas de boîtes catalogue */
+
+.folio {
+  padding-top: 0.5rem;
+}
+
+.folio-kicker {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.folio-hero {
+  min-height: calc(100vh - 5.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 0 3rem;
+  scroll-margin-top: 5rem;
+}
+
+.folio-brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(3.8rem, 12vw, 7.5rem);
+  line-height: 0.88;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+}
+
+.folio-brand span {
+  display: block;
+  color: var(--accent);
+}
+
+.folio-dek {
+  margin: 1.25rem 0 0;
+  max-width: 28rem;
+  font-size: 1.08rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.folio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1.6rem;
+}
+
+.folio-btn {
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: transparent;
+  color: inherit;
+  padding: 0.75rem 1.15rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.folio-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.folio-btn-fill {
+  background: var(--sw-yellow, #ffe81f);
+  border-color: var(--sw-yellow, #ffe81f);
+  color: #16120a;
+}
+
+.folio-btn-fill:hover {
+  filter: brightness(1.05);
+  color: #16120a;
+}
+
+.folio-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin-top: 3.2rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.folio-index button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.folio-index button:hover {
+  color: var(--ink);
+}
+
+.folio-block {
+  padding: 3.5rem 0 2.5rem;
+}
+
+.folio-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1.35rem;
+}
+
+.folio-row-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.folio-link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding: 0;
+}
+
+.folio-link:hover {
+  text-decoration: underline;
+}
+
+/* Rail horizontal plein cadre — le geste portfolio */
+.folio-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 28vw);
+  gap: 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: max(1rem, calc(50vw - 560px));
+  padding: 0.25rem max(1rem, calc(50vw - 560px)) 1.1rem;
+  margin-inline: calc(50% - 50vw);
+  width: 100vw;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, currentColor 35%, transparent) transparent;
+}
+
+.folio-rail:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.folio-rail-case .folio-shot.is-lead {
+  grid-column: span 1;
+  grid-auto-columns: unset;
+}
+
+.folio-shot.is-lead {
+  min-width: min(420px, 72vw);
+}
+
+.folio-shot {
+  scroll-snap-align: start;
+  margin: 0;
+  color: inherit;
+  text-decoration: none;
+  display: grid;
+  gap: 0.65rem;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.folio-shot:hover {
+  transform: translateY(-6px);
+}
+
+.folio-shot-frame {
+  aspect-ratio: 4 / 5;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(245, 235, 210, 0.72));
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  box-shadow: 0 18px 40px rgba(20, 12, 6, 0.12);
+}
+
+.ink-night .folio-shot-frame {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(230, 228, 220, 0.88));
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.35);
+}
+
+.folio-shot-frame .set-img,
+.folio-shot-frame .img-fallback {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.folio-shot figcaption,
+.folio-shot-cap {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.folio-shot strong,
+.folio-shot-cap strong {
+  font-size: 0.95rem;
+  line-height: 1.25;
+  font-weight: 650;
+}
+
+.folio-shot small,
+.folio-shot-cap small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.folio-empty {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: transparent;
+  color: inherit;
+  padding: 1.4rem 0;
+  font-size: 1.15rem;
+}
+
+.folio-empty:hover {
+  color: var(--accent);
+}
+
+/* Index missions type archive designer */
+.folio-play-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.folio-play-list li {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.folio-play-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: baseline;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 1.25rem 0.1rem;
+  transition: padding 0.25s ease, background 0.2s ease;
+}
+
+.folio-play-list button:hover:not(:disabled) {
+  padding-left: 0.65rem;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.folio-num {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.folio-play-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+.folio-play-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.folio-play-go {
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.folio-play-list button:hover .folio-play-go,
+.folio-play-list button:focus-visible .folio-play-go {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.folio-catalog {
+  padding: 4rem 0 2rem;
+  scroll-margin-top: 5rem;
+}
+
+.folio-catalog-head {
+  max-width: 34rem;
+  margin-bottom: 2.5rem;
+}
+
+.folio-catalog-head h2 {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 7vw, 4.4rem);
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.folio-catalog-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.folio-note {
+  color: var(--muted);
+}
+
+.folio-case {
+  margin: 0 0 3.2rem;
+}
+
+.folio-case-head {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  margin-bottom: 1rem;
+  padding-inline: 0.1rem;
+}
+
+.folio-case-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  letter-spacing: -0.02em;
+}
+
+.folio-case-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.folio-close {
+  padding: 4.5rem 0 5rem;
+  scroll-margin-top: 5rem;
+  border-top: 1px solid color-mix(in srgb, #ff6a2a 45%, transparent);
+}
+
+.folio-close h2 {
+  margin: 0 0 1.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  letter-spacing: -0.035em;
+}
+
+.folio-close-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.folio-close-links button {
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  background: none;
+  color: inherit;
+  padding: 0.35rem 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.folio-close-links button:hover:not(:disabled) {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+@media (max-width: 860px) {
+  .folio-play-list button {
+    grid-template-columns: 2.4rem 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .folio-play-meta {
+    grid-column: 2;
+  }
+
+  .folio-play-go {
+    display: none;
+  }
+
+  .folio-rail {
+    grid-auto-columns: minmax(200px, 70vw);
+  }
+}

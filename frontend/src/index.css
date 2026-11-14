@@ -60,7 +60,13 @@ code {
 }
 
 .app-home {
-  width: min(1240px, calc(100% - 1.5rem));
+  width: min(1120px, calc(100% - 2rem));
+}
+
+.app-home.ink-night {
+  --ink: #f3f0ea;
+  --muted: #b7b2a8;
+  --accent: #ffe081;
 }
 
 .app-panel {
@@ -96,28 +102,21 @@ code {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin: 0 -0.2rem 0.55rem;
-  padding: 0.65rem 0.35rem 0.85rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--sand-deep, #1a1208) 55%, transparent),
-    transparent
-  );
-  backdrop-filter: blur(14px);
-}
-
-.ink-night .site-header {
-  background: linear-gradient(180deg, rgba(6, 10, 22, 0.82), transparent);
+  margin: 0 -0.2rem 0.35rem;
+  padding: 0.85rem 0.15rem 0.95rem;
+  background: color-mix(in srgb, transparent 42%, #0b0d12 12%);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
 }
 
 .brand {
   border: 0;
   background: transparent;
   padding: 0;
-  color: var(--accent);
+  color: inherit;
   font-family: var(--font-display);
-  font-size: clamp(1.55rem, 2.8vw, 2.1rem);
-  letter-spacing: 0.1em;
+  font-size: 1.05rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   line-height: 1;
 }
@@ -1541,36 +1540,12 @@ code {
   .reveal,
   .trio-grid,
   .clues,
-  .minifig-stage,
-  .mission-lanes,
-  .spread-body,
-  .finale-grid {
+  .minifig-stage {
     grid-template-columns: 1fr;
   }
 
   .site-nav .nav-link {
     display: none;
-  }
-
-  .vault-grid,
-  .spread-grid,
-  .moc-mosaic {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .vault-cell-1,
-  .vault-cell-2,
-  .vault-cell-3,
-  .vault-cell-4,
-  .vault-cell-5,
-  .moc-1,
-  .moc-2,
-  .moc-3 {
-    grid-column: span 1;
-  }
-
-  .vault-grid {
-    grid-auto-rows: 140px;
   }
 
   .scene-astro,
